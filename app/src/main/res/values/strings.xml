@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Minimal Browser</string>
+    <string name="search_the_web">Search the web</string>
+    <string name="search">Search</string>
+</resources>

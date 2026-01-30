@@ -1,0 +1,27 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:orientation="horizontal"
+    android:background="@drawable/widget_bg"
+    android:padding="8dp"
+    android:gravity="center_vertical"
+    android:elevation="6dp"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+
+    <ImageView
+        android:id="@+id/search_icon"
+        android:src="@android:drawable/ic_menu_search"
+        android:layout_width="20dp"
+        android:layout_height="20dp"
+        android:layout_marginEnd="8dp"
+        app:tint="#BBBBBB" />
+
+    <TextView
+        android:id="@+id/search_placeholder"
+        android:text="Search the web"
+        android:textColor="#BBBBBB"
+        android:textSize="16sp"
+        android:layout_weight="1"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content" />
+</LinearLayout>

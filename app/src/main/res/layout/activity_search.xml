@@ -1,0 +1,118 @@
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/root_layout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#121212">
+
+    <LinearLayout
+        android:id="@+id/main_container"
+        android:orientation="vertical"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <!-- Custom Top Bar -->
+        <LinearLayout
+            android:id="@+id/top_bar"
+            android:orientation="horizontal"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:background="?attr/colorPrimary"
+            android:gravity="center_vertical"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp">
+
+            <TextView
+                android:text="Minimal Browser"
+                android:textColor="?attr/colorOnPrimary"
+                android:textSize="18sp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+
+            <ImageButton
+                android:id="@+id/home_button"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="@android:color/transparent"
+                android:contentDescription="Home"
+                android:src="@android:drawable/ic_menu_revert" />
+
+            <ImageButton
+                android:id="@+id/toggle_search_button"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_gravity="center_vertical|end"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Toggle Search"
+                android:padding="8dp"
+                app:tint="@android:color/white"
+                android:src="@drawable/ic_arrow_down" />
+
+        </LinearLayout>
+
+        <!-- Search container (hidden by default) -->
+        <LinearLayout
+            android:id="@+id/searchContainer"
+            android:orientation="horizontal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:padding="8dp"
+            android:gravity="center_vertical"
+            android:visibility="visible">
+
+            <EditText
+                android:id="@+id/search_input"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:hint="Search..."
+                android:imeOptions="actionSearch"
+                android:singleLine="true" />
+
+            <ImageButton
+                android:id="@+id/search_button"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="@android:color/transparent"
+                android:contentDescription="Search"
+                android:src="@android:drawable/ic_menu_search" />
+        </LinearLayout>
+
+
+        <LinearLayout
+            android:id="@+id/web_split_container"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="horizontal">
+
+            <FrameLayout
+                android:id="@+id/web_container_left"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1" />
+
+            <FrameLayout
+                android:id="@+id/web_container_right"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:visibility="gone" />
+        </LinearLayout>
+
+
+    </LinearLayout>
+
+    <!-- Floating split toggle button -->
+    <ImageButton
+        android:id="@+id/toggle_split_button"
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:layout_gravity="top|end"
+        android:layout_margin="0dp"
+        android:background="@android:color/transparent"
+        android:padding="8dp"
+        android:src="@android:drawable/ic_menu_add"
+        android:contentDescription="Toggle Split"
+        app:tint="@android:color/white" />
+
+</FrameLayout>
