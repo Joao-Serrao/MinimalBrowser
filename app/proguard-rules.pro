@@ -12,10 +12,20 @@
 #   public *;
 #}
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# Preserve line numbers for readable release crash traces.
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# Manifest components (activities, the widget provider) are kept automatically
+# by AGP. These extra rules cover WebView surfaces in case JS bridges are added
+# later, and keep the framework-invoked WebView client callbacks intact.
+-keepclassmembers class * extends android.webkit.WebChromeClient {
+    public *;
+}
+-keepclassmembers class * extends android.webkit.WebViewClient {
+    public *;
+}
+# Uncomment and set the class name if you ever add @JavascriptInterface methods:
+#-keepclassmembers class com.example.minimalbrowser.YourBridge {
+#   @android.webkit.JavascriptInterface <methods>;
+#}
