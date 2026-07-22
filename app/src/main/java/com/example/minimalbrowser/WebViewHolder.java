@@ -48,22 +48,53 @@ public class WebViewHolder {
                               WebChromeClient.FileChooserParams params);
     }
 
-    /** Hosts blocked outright, matched exactly or as a parent domain. */
-    private static final Set<String> BLOCKED_HOSTS = new HashSet<>(Arrays.asList(
-            "doubleclick.net",
-            "googlesyndication.com",
-            "googleadservices.com",
-            "google-analytics.com",
-            "adservice.google.com",
-            "amazon-adsystem.com",
-            "adnxs.com",
-            "criteo.com",
-            "outbrain.com",
-            "taboola.com",
-            "scorecardresearch.com"));
+    /** Ad / tracker domains, matched exactly or as a parent domain. */
+    private static final Set<String> BLOCKED_DOMAINS = new HashSet<>(Arrays.asList(
+            // Google ad/analytics stack
+            "doubleclick.net", "googlesyndication.com", "googleadservices.com",
+            "google-analytics.com", "googletagservices.com", "googletagmanager.com",
+            "adservice.google.com", "2mdn.net", "app-measurement.com",
+            // Big ad exchanges / SSPs
+            "amazon-adsystem.com", "adnxs.com", "adsrvr.org", "rubiconproject.com",
+            "pubmatic.com", "openx.net", "smartadserver.com", "adform.net",
+            "casalemedia.com", "contextweb.com", "bidswitch.net", "mathtag.com",
+            "3lift.com", "sharethrough.com", "yieldmo.com", "gumgum.com",
+            // Native / content-recommendation ads
+            "criteo.com", "criteo.net", "outbrain.com", "taboola.com", "mgid.com",
+            "revcontent.com", "media.net", "teads.tv",
+            // Popunder / aggressive networks
+            "popads.net", "popcash.net", "onclickads.net", "propellerads.com",
+            "admaven.com", "hilltopads.net", "adcash.com", "exoclick.com",
+            "juicyads.com", "trafficjunky.net",
+            // Measurement / analytics / session trackers
+            "scorecardresearch.com", "quantserve.com", "quantcount.com",
+            "moatads.com", "doubleverify.com", "chartbeat.com", "hotjar.com",
+            "mixpanel.com", "amplitude.com", "segment.com", "segment.io",
+            "fullstory.com", "newrelic.com", "nr-data.net", "adroll.com",
+            "branch.io", "appsflyer.com", "adjust.com", "kochava.com"));
 
-    /** Subdomain prefixes that reliably indicate an ad server. */
-    private static final String[] BLOCKED_PREFIXES = {"ads.", "ad.", "adserver.", "banner.", "track."};
+    /**
+     * DNS labels that mark a subdomain as ad/tracker infrastructure. Matched
+     * against whole labels (host split on "."), so "downloads" and "threads"
+     * never match "ads" — that whole-label check is what fixes the old
+     * {@code url.contains("ads.")} bug while still catching ads.*, adserver.*,
+     * analytics.* and friends on any domain. Bare "ad" is deliberately absent
+     * (it is a real site, e.g. ad.nl).
+     */
+    private static final Set<String> AD_LABELS = new HashSet<>(Arrays.asList(
+            "ads", "ads1", "ads2", "adserver", "adservers", "adservice", "adsystem",
+            "adsdk", "pagead", "pagead2", "advert", "adverts", "advertising",
+            "advertisement", "banner", "banners", "popads", "popunder",
+            "analytics", "telemetry", "tracker", "tracking", "metrics", "beacon"));
+
+    /**
+     * Path fragments common to ad requests, checked against the full URL. Each
+     * keeps a leading slash so "/ads/" can never match "/downloads/".
+     */
+    private static final String[] BLOCKED_PATH_FRAGMENTS = {
+            "/pagead/", "/ads/", "/adserver/", "/adservice/", "/adframe",
+            "/ad_frame", "/gampad/", "/advertisement", "/banners/",
+            "/popunder", "/adsense/"};
 
     private WebViewHolder() {
     }
@@ -79,9 +110,12 @@ public class WebViewHolder {
     @SuppressLint("SetJavaScriptEnabled")
     public static void applySettings(Activity activity, WebView wv, Host host) {
         WebSettings settings = wv.getSettings();
-        // Append to the stock user agent rather than pinning a fixed Chrome
-        // version, which goes stale and makes sites serve degraded pages.
-        settings.setUserAgentString(settings.getUserAgentString() + " MinimalBrowser");
+        // A real Chrome-mobile UA (no "wv"/"MinimalBrowser" token). Presenting
+        // as a plain WebView made ad networks serve more/heavier ads, so this
+        // stays a normal-browser string.
+        settings.setUserAgentString(
+                "Mozilla/5.0 (Linux; Android 13; Mobile) AppleWebKit/537.36 "
+                        + "(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36");
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
         settings.setLoadsImagesAutomatically(true);
@@ -108,7 +142,11 @@ public class WebViewHolder {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 String url = request.getUrl().toString();
-                if (url.startsWith("http://") || url.startsWith("https://")) return false;
+                if (url.startsWith("http://") || url.startsWith("https://")) {
+                    // Cancel redirect-to-ad navigations (the "tap sends you to
+                    // an ad page" case) instead of following them.
+                    return isBlocked(request.getUrl());
+                }
 
                 // mailto:, tel:, intent:, market: ... hand off to the system.
                 openExternally(activity, url);
@@ -181,25 +219,35 @@ public class WebViewHolder {
         view.loadDataWithBaseURL(failedUrl, html, "text/html", "utf-8", failedUrl);
     }
 
-    /**
-     * Host-based match. The old check was {@code url.contains("ads.")}, which
-     * also matched any URL containing "loads." — blocking downloads.*, uploads.*
-     * and threads.* among others.
-     */
     static boolean isBlocked(Uri uri) {
-        return isBlockedHost(uri.getHost());
+        return isBlockedHost(uri.getHost()) || isBlockedUrl(uri.toString());
     }
 
-    /** Split out from {@link #isBlocked} so it is unit-testable off-device. */
+    /**
+     * Host match by ad-domain suffix or ad DNS label. Whole-label matching is
+     * what fixes the old {@code url.contains("ads.")} bug: "downloads" and
+     * "threads" are single labels that never equal "ads". Unit-testable
+     * off-device.
+     */
     static boolean isBlockedHost(String host) {
         if (host == null) return false;
         host = host.toLowerCase(Locale.ROOT);
 
-        for (String prefix : BLOCKED_PREFIXES) {
-            if (host.startsWith(prefix)) return true;
+        for (String domain : BLOCKED_DOMAINS) {
+            if (host.equals(domain) || host.endsWith("." + domain)) return true;
         }
-        for (String blocked : BLOCKED_HOSTS) {
-            if (host.equals(blocked) || host.endsWith("." + blocked)) return true;
+        for (String label : host.split("\\.")) {
+            if (AD_LABELS.contains(label)) return true;
+        }
+        return false;
+    }
+
+    /** Path-fragment match for ad requests, e.g. host.com/pagead/... */
+    static boolean isBlockedUrl(String url) {
+        if (url == null) return false;
+        String lower = url.toLowerCase(Locale.ROOT);
+        for (String fragment : BLOCKED_PATH_FRAGMENTS) {
+            if (lower.contains(fragment)) return true;
         }
         return false;
     }
