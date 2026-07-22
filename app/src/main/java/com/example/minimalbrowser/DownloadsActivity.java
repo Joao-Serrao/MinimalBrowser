@@ -1,97 +1,159 @@
 package com.example.minimalbrowser;
 
-import android.annotation.SuppressLint;
 import android.app.DownloadManager;
+import android.content.Intent;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.view.Gravity;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
+import android.widget.ScrollView;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
 
-import java.util.HashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class DownloadsActivity extends AppCompatActivity {
 
+    private static final long POLL_INTERVAL_MS = 500;
+
     private DownloadManager dm;
     private LinearLayout container;
-    private HashMap<Long, ProgressBar> progressBars = new HashMap<>();
+    private final Handler handler = new Handler(Looper.getMainLooper());
+
+    /** Cleared in onDestroy so polling loops cannot outlive the activity. */
+    private final AtomicBoolean active = new AtomicBoolean(true);
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
         container = new LinearLayout(this);
         container.setOrientation(LinearLayout.VERTICAL);
-        setContentView(container);
+        int pad = Math.round(16 * getResources().getDisplayMetrics().density);
+        container.setPadding(pad, pad, pad, pad);
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(container, new ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT));
+        setContentView(scroll);
 
         dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
         loadDownloads();
     }
 
     private void loadDownloads() {
-        DownloadManager.Query query = new DownloadManager.Query();
-        Cursor c = dm.query(query);
+        int count = 0;
 
-        if (c != null) {
-            while (c.moveToNext()) {
-                @SuppressLint("Range") long id = c.getLong(c.getColumnIndex(DownloadManager.COLUMN_ID));
-                @SuppressLint("Range") String title = c.getString(c.getColumnIndex(DownloadManager.COLUMN_TITLE));
-                @SuppressLint("Range") int status = c.getInt(c.getColumnIndex(DownloadManager.COLUMN_STATUS));
+        // try-with-resources: the old code skipped close() on the break path
+        // and whenever moveToFirst() returned false.
+        try (Cursor c = dm.query(new DownloadManager.Query())) {
+            if (c != null) {
+                int idCol = c.getColumnIndexOrThrow(DownloadManager.COLUMN_ID);
+                int titleCol = c.getColumnIndexOrThrow(DownloadManager.COLUMN_TITLE);
+                int statusCol = c.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS);
 
-                TextView tv = new TextView(this);
-                tv.setText(title);
-                container.addView(tv);
-
-                ProgressBar pb = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
-                pb.setMax(100);
-                container.addView(pb);
-                progressBars.put(id, pb);
-
-                updateProgress(id, pb, status);
+                while (c.moveToNext()) {
+                    addRow(c.getLong(idCol), c.getString(titleCol), c.getInt(statusCol));
+                    count++;
+                }
             }
-            c.close();
+        }
+
+        if (count == 0) {
+            TextView empty = new TextView(this);
+            empty.setText(R.string.no_downloads);
+            empty.setGravity(Gravity.CENTER);
+            container.addView(empty);
         }
     }
 
-    private void updateProgress(long id, ProgressBar pb, int status) {
+    private void addRow(long id, String title, int status) {
+        TextView tv = new TextView(this);
+        tv.setText(title == null ? "" : title);
+        container.addView(tv);
+
+        ProgressBar pb = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        pb.setMax(100);
+        container.addView(pb);
+
         if (status == DownloadManager.STATUS_SUCCESSFUL) {
             pb.setProgress(100);
-            // Optionally set click listener to open file
-            DownloadManager.Query query = new DownloadManager.Query();
-            query.setFilterById(id);
-            Cursor c = dm.query(query);
-            if (c.moveToFirst()) {
-                @SuppressLint("Range") String uriStr = c.getString(c.getColumnIndex(DownloadManager.COLUMN_LOCAL_URI));
-                Uri fileUri = Uri.parse(uriStr);
-                pb.setOnClickListener(v -> startActivity(new android.content.Intent(android.content.Intent.ACTION_VIEW)
-                        .setData(fileUri)
-                        .addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)));
-            }
-            c.close();
-        } else if (status == DownloadManager.STATUS_RUNNING) {
-            // Poll progress periodically
-            new Thread(() -> {
-                while (true) {
-                    DownloadManager.Query q = new DownloadManager.Query();
-                    q.setFilterById(id);
-                    Cursor c = dm.query(q);
-                    if (c != null && c.moveToFirst()) {
-                        @SuppressLint("Range") int bytesDownloaded = c.getInt(c.getColumnIndex(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR));
-                        @SuppressLint("Range") int bytesTotal = c.getInt(c.getColumnIndex(DownloadManager.COLUMN_TOTAL_SIZE_BYTES));
-                        final int progress = (bytesTotal > 0) ? (int) (bytesDownloaded * 100L / bytesTotal) : 0;
-
-                        runOnUiThread(() -> pb.setProgress(progress));
-
-                        @SuppressLint("Range") int downloadStatus = c.getInt(c.getColumnIndex(DownloadManager.COLUMN_STATUS));
-                        if (downloadStatus != DownloadManager.STATUS_RUNNING) break;
-                        c.close();
-                    }
-                    try { Thread.sleep(500); } catch (InterruptedException ignored) {}
-                }
-            }).start();
+            bindOpenAction(tv, id);
+        } else if (status == DownloadManager.STATUS_RUNNING
+                || status == DownloadManager.STATUS_PENDING) {
+            pollProgress(id, pb, tv);
         }
+    }
+
+    private void bindOpenAction(View row, long id) {
+        DownloadManager.Query query = new DownloadManager.Query().setFilterById(id);
+        try (Cursor c = dm.query(query)) {
+            if (c == null || !c.moveToFirst()) return;
+
+            String uriStr = c.getString(c.getColumnIndexOrThrow(DownloadManager.COLUMN_LOCAL_URI));
+            if (uriStr == null) return;
+
+            Uri fileUri = Uri.parse(uriStr);
+            // The row label is the click target; a ProgressBar is not one.
+            row.setOnClickListener(v -> {
+                try {
+                    startActivity(new Intent(Intent.ACTION_VIEW)
+                            .setData(fileUri)
+                            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION));
+                } catch (Exception ignored) {
+                    // No app can open this file type.
+                }
+            });
+        }
+    }
+
+    /**
+     * Polls on the main-thread Handler instead of a {@code while(true)} worker.
+     * The old version span forever when the query returned nothing and held an
+     * Activity reference well past destruction.
+     */
+    private void pollProgress(long id, ProgressBar pb, View row) {
+        handler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if (!active.get()) return;
+
+                DownloadManager.Query query = new DownloadManager.Query().setFilterById(id);
+                try (Cursor c = dm.query(query)) {
+                    if (c == null || !c.moveToFirst()) return;
+
+                    int status = c.getInt(c.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS));
+                    long done = c.getLong(c.getColumnIndexOrThrow(
+                            DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR));
+                    long total = c.getLong(c.getColumnIndexOrThrow(
+                            DownloadManager.COLUMN_TOTAL_SIZE_BYTES));
+
+                    pb.setProgress(total > 0 ? (int) (done * 100L / total) : 0);
+
+                    if (status == DownloadManager.STATUS_SUCCESSFUL) {
+                        pb.setProgress(100);
+                        bindOpenAction(row, id);
+                        return;
+                    }
+                    if (status == DownloadManager.STATUS_FAILED) return;
+                }
+                handler.postDelayed(this, POLL_INTERVAL_MS);
+            }
+        }, POLL_INTERVAL_MS);
+    }
+
+    @Override
+    protected void onDestroy() {
+        active.set(false);
+        handler.removeCallbacksAndMessages(null);
+        super.onDestroy();
     }
 }

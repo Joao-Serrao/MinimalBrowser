@@ -1,9 +1,16 @@
-<resources xmlns:tools="http://schemas.android.com/tools">
+<resources>
+    <!--
+        The app is intentionally dark-only, so there is no values-night variant.
+        Adding one would let the framework swap in a themed ActionBar underneath
+        the custom top bar.
+    -->
     <style name="Theme.MinimalBrowser" parent="Theme.Material3.Dark.NoActionBar">
         <item name="android:windowFullscreen">false</item>
-        <item name="colorPrimary">#1F1F1F</item>
-        <item name="colorOnPrimary">#FFFFFF</item>
-        <item name="android:windowBackground">#121212</item>
-        <item name="android:textColor">#FFFFFF</item>
+        <item name="colorPrimary">@color/top_bar</item>
+        <item name="colorOnPrimary">@color/on_top_bar</item>
+        <item name="android:windowBackground">@color/background</item>
+        <item name="android:textColor">@color/on_top_bar</item>
+        <item name="android:statusBarColor">@color/background</item>
+        <item name="android:navigationBarColor">@color/background</item>
     </style>
 </resources>

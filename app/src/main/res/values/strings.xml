@@ -2,4 +2,10 @@
     <string name="app_name">Minimal Browser</string>
     <string name="search_the_web">Search the web</string>
     <string name="search">Search</string>
+    <string name="search_hint">Search…</string>
+    <string name="home">Home</string>
+    <string name="toggle_search">Toggle search bar</string>
+    <string name="toggle_split">Toggle split view</string>
+    <string name="downloads">Downloads</string>
+    <string name="no_downloads">No downloads yet</string>
 </resources>
