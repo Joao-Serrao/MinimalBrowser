@@ -16,16 +16,21 @@ import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
+import android.webkit.ValueCallback;
+import android.webkit.WebChromeClient;
 import android.webkit.WebView;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
+import android.widget.ProgressBar;
 
 import androidx.activity.OnBackPressedCallback;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 
-public class SearchActivity extends AppCompatActivity {
+public class SearchActivity extends AppCompatActivity implements WebViewHolder.Host {
 
     private static final String HOME_URL = "https://duckduckgo.com/?kp=-2&ka=-1";
     private static final String SEARCH_URL = "https://duckduckgo.com/?q=%s&kp=-2&ka=-1";
@@ -43,10 +48,24 @@ public class SearchActivity extends AppCompatActivity {
     private EditText searchInput;
     private ImageButton toggleSearchButton;
     private LinearLayout searchContainer;
+    private ProgressBar progressBar;
     private FrameLayout webArea;
     private FrameLayout leftContainer;
     private FrameLayout rightContainer;
     private LinearLayout splitContainer;
+
+    private ValueCallback<Uri[]> pendingFileCallback;
+    private final ActivityResultLauncher<Intent> fileChooserLauncher =
+            registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
+                Uri[] uris = WebChromeClient.FileChooserParams.parseResult(
+                        result.getResultCode(), result.getData());
+                if (pendingFileCallback != null) {
+                    // Must always deliver, even null on cancel, or the page's
+                    // file input stays permanently stuck.
+                    pendingFileCallback.onReceiveValue(uris);
+                    pendingFileCallback = null;
+                }
+            });
 
     private boolean isSplit = false;
     private boolean isResizing = false;
@@ -74,7 +93,7 @@ public class SearchActivity extends AppCompatActivity {
         SystemUi.hideBars(this);
         applyKeyboardResizeWorkaround();
 
-        mainWebView = WebViewHolder.create(this);
+        mainWebView = WebViewHolder.create(this, this);
         attachWebView(leftContainer, mainWebView);
         activeWebView = mainWebView;
         setupWebViewTouchListener(mainWebView);
@@ -93,6 +112,7 @@ public class SearchActivity extends AppCompatActivity {
         searchInput = findViewById(R.id.search_input);
         searchContainer = findViewById(R.id.searchContainer);
         toggleSearchButton = findViewById(R.id.toggle_search_button);
+        progressBar = findViewById(R.id.progress_bar);
         webArea = findViewById(R.id.web_area);
         splitContainer = findViewById(R.id.web_split_container);
         leftContainer = findViewById(R.id.web_container_left);
@@ -146,13 +166,17 @@ public class SearchActivity extends AppCompatActivity {
     }
 
     private void performSearch() {
-        String query = searchInput.getText().toString().trim();
+        String input = searchInput.getText().toString().trim();
         hideKeyboard();
-        if (query.isEmpty() || activeWebView == null) return;
+        if (input.isEmpty() || activeWebView == null) return;
 
-        // Uri.encode, not a manual space swap: a query containing &, #, + or %
-        // used to produce a broken or truncated URL.
-        activeWebView.loadUrl(String.format(SEARCH_URL, Uri.encode(query)));
+        String url = UrlUtil.normalizeToUrl(input);
+        if (url == null) {
+            // Uri.encode, not a manual space swap: a query containing &, #, + or
+            // % used to produce a broken or truncated URL.
+            url = String.format(SEARCH_URL, Uri.encode(input));
+        }
+        activeWebView.loadUrl(url);
     }
 
     // ------------------- SEARCH BAR TOGGLE -------------------
@@ -360,7 +384,7 @@ public class SearchActivity extends AppCompatActivity {
     private void ensureSecondaryWebView() {
         if (secondaryWebView != null) return;
 
-        secondaryWebView = WebViewHolder.create(this);
+        secondaryWebView = WebViewHolder.create(this, this);
         setupWebViewTouchListener(secondaryWebView);
         secondaryWebView.loadUrl(SECONDARY_HOME_URL);
         savedLeftWeight = 0.5f;
@@ -371,7 +395,13 @@ public class SearchActivity extends AppCompatActivity {
     private void setupWebViewTouchListener(WebView webView) {
         webView.setOnTouchListener((v, event) -> {
             if (event.getAction() == MotionEvent.ACTION_DOWN) {
-                activeWebView = webView;
+                if (activeWebView != webView) {
+                    activeWebView = webView;
+                    // Reflect the newly focused pane in the address bar and drop
+                    // the other pane's stale progress.
+                    updateOmnibox(webView, webView.getUrl());
+                    progressBar.setVisibility(View.GONE);
+                }
                 long now = System.currentTimeMillis();
                 if (lastClickedWebView == webView && now - lastClickTime < DOUBLE_TAP_MS) {
                     // Exiting is handled by the overlay's own double tap; while
@@ -504,6 +534,58 @@ public class SearchActivity extends AppCompatActivity {
         container.addView(wv, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT));
+    }
+
+    // ------------------- WEBVIEW HOST CALLBACKS -------------------
+
+    @Override
+    public void onProgress(WebView view, int progress) {
+        if (view != activeWebView) return;              // ignore the background pane
+        if (progress >= 100) {
+            progressBar.setVisibility(View.GONE);
+        } else {
+            progressBar.setVisibility(View.VISIBLE);
+            progressBar.setProgress(progress);
+        }
+    }
+
+    @Override
+    public void onUrlChanged(WebView view, String url) {
+        updateOmnibox(view, url);
+    }
+
+    @Override
+    public boolean onFileChooser(ValueCallback<Uri[]> callback,
+                                 WebChromeClient.FileChooserParams params) {
+        // Cancel a previous, still-pending chooser before starting a new one.
+        if (pendingFileCallback != null) pendingFileCallback.onReceiveValue(null);
+        pendingFileCallback = callback;
+        try {
+            fileChooserLauncher.launch(params.createIntent());
+            return true;
+        } catch (Exception e) {
+            pendingFileCallback = null;
+            return false;
+        }
+    }
+
+    @Override
+    public WebView acquireWindowTarget(WebView source) {
+        // Open target="_blank"/window.open in the opposite pane, opening the
+        // split first if needed.
+        if (!isSplit) openSplit();
+        if (secondaryWebView == null) return source;
+
+        WebView target = (source == mainWebView) ? secondaryWebView : mainWebView;
+        activeWebView = target;
+        lastClickedWebView = target;
+        return target;
+    }
+
+    /** Shows the page URL (or a DuckDuckGo query) unless the user is typing. */
+    private void updateOmnibox(WebView view, String url) {
+        if (view != activeWebView || searchInput.hasFocus()) return;
+        searchInput.setText(UrlUtil.displayTextForUrl(url));
     }
 
     // ------------------- NAVIGATION -------------------
