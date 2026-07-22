@@ -348,11 +348,12 @@ public class SearchActivity extends AppCompatActivity implements WebViewHolder.H
 
         adjustSplitLayoutWithSavedWeights(getResources().getConfiguration().orientation);
 
-        if (lastClickedWebView == mainWebView || lastClickedWebView == secondaryWebView) {
-            activeWebView = lastClickedWebView;
-        } else {
-            activeWebView = secondaryWebView;
-        }
+        // Keep focus on the window the user was already using. Previously the
+        // split stole focus to the new pane, so hardware Back drove the second
+        // window's history and only reached the main window once the split was
+        // closed. Tapping a pane (or long-press) still switches focus.
+        activeWebView = mainWebView;
+        lastClickedWebView = mainWebView;
         refreshOmnibox();
     }
 
