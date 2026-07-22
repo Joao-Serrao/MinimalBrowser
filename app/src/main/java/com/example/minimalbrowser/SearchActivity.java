@@ -325,6 +325,7 @@ public class SearchActivity extends AppCompatActivity implements WebViewHolder.H
                 // Long-press opens the second pane and focuses it immediately.
                 activeWebView = secondaryWebView;
                 lastClickedWebView = secondaryWebView;
+                refreshOmnibox();
             } else {
                 swapWebViews();
             }
@@ -352,6 +353,7 @@ public class SearchActivity extends AppCompatActivity implements WebViewHolder.H
         } else {
             activeWebView = secondaryWebView;
         }
+        refreshOmnibox();
     }
 
     private void closeSplit() {
@@ -375,6 +377,9 @@ public class SearchActivity extends AppCompatActivity implements WebViewHolder.H
         splitContainer.setOrientation(LinearLayout.HORIZONTAL);
         activeWebView = mainWebView;
         lastClickedWebView = mainWebView;
+        // The address bar was still showing the now-closed pane's URL.
+        progressBar.setVisibility(View.GONE);
+        refreshOmnibox();
     }
 
     /**
@@ -569,23 +574,15 @@ public class SearchActivity extends AppCompatActivity implements WebViewHolder.H
         }
     }
 
-    @Override
-    public WebView acquireWindowTarget(WebView source) {
-        // Open target="_blank"/window.open in the opposite pane, opening the
-        // split first if needed.
-        if (!isSplit) openSplit();
-        if (secondaryWebView == null) return source;
-
-        WebView target = (source == mainWebView) ? secondaryWebView : mainWebView;
-        activeWebView = target;
-        lastClickedWebView = target;
-        return target;
-    }
-
     /** Shows the page URL (or a DuckDuckGo query) unless the user is typing. */
     private void updateOmnibox(WebView view, String url) {
         if (view != activeWebView || searchInput.hasFocus()) return;
         searchInput.setText(UrlUtil.displayTextForUrl(url));
+    }
+
+    /** Refreshes the address bar to reflect the current active view. */
+    private void refreshOmnibox() {
+        if (activeWebView != null) updateOmnibox(activeWebView, activeWebView.getUrl());
     }
 
     // ------------------- NAVIGATION -------------------
