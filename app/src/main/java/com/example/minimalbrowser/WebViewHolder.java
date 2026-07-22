@@ -5,7 +5,6 @@ import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.net.Uri;
-import android.os.Message;
 import android.text.TextUtils;
 import android.view.View;
 import android.view.ViewGroup;
@@ -47,12 +46,6 @@ public class WebViewHolder {
          */
         boolean onFileChooser(ValueCallback<Uri[]> callback,
                               WebChromeClient.FileChooserParams params);
-
-        /**
-         * A user-initiated target="_blank"/window.open needs somewhere to load.
-         * Returns the WebView to hand the new window, or null to block it.
-         */
-        WebView acquireWindowTarget(WebView source);
     }
 
     /** Hosts blocked outright, matched exactly or as a parent domain. */
@@ -94,9 +87,11 @@ public class WebViewHolder {
         settings.setLoadsImagesAutomatically(true);
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
-        // Needed for target="_blank" / window.open to reach onCreateWindow.
-        settings.setSupportMultipleWindows(true);
-        settings.setJavaScriptCanOpenWindowsAutomatically(true);
+        // Leave multiple-window support OFF. With it on, ad scripts' window.open
+        // and popup links spawn new windows; off, target="_blank" simply loads
+        // in the current view and popups are swallowed.
+        settings.setSupportMultipleWindows(false);
+        settings.setJavaScriptCanOpenWindowsAutomatically(false);
 
         CookieManager cookieManager = CookieManager.getInstance();
         cookieManager.setAcceptCookie(true);
@@ -233,21 +228,6 @@ public class WebViewHolder {
                                              FileChooserParams params) {
                 // Without this, <input type="file"> silently does nothing.
                 return host != null && host.onFileChooser(callback, params);
-            }
-
-            @Override
-            public boolean onCreateWindow(WebView view, boolean isDialog,
-                                          boolean isUserGesture, Message resultMsg) {
-                // Ignore programmatic popups (ads); honour real taps only.
-                if (!isUserGesture || host == null) return false;
-
-                WebView target = host.acquireWindowTarget(view);
-                if (target == null) return false;
-
-                WebView.WebViewTransport transport = (WebView.WebViewTransport) resultMsg.obj;
-                transport.setWebView(target);
-                resultMsg.sendToTarget();
-                return true;
             }
 
             @Override
