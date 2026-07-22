@@ -36,9 +36,13 @@ android {
 dependencies {
     implementation(libs.appcompat)
     implementation(libs.material)
-    implementation("androidx.browser:browser:1.5.0")
-    implementation(libs.browser)
+    // androidx.browser was declared twice (hardcoded 1.5.0 and libs.browser
+    // 1.9.0) and never used; dropped. Add it back if CustomTabs are needed.
+    implementation(libs.core)
     testImplementation(libs.junit)
     androidTestImplementation(libs.ext.junit)
     androidTestImplementation(libs.espresso.core)
+}
+tasks.withType<JavaCompile>().configureEach {
+    options.compilerArgs.add("-Xlint:deprecation")
 }

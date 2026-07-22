@@ -14,12 +14,13 @@
         android:layout_width="20dp"
         android:layout_height="20dp"
         android:layout_marginEnd="8dp"
-        app:tint="#BBBBBB" />
+        android:contentDescription="@string/search"
+        app:tint="@color/hint" />
 
     <TextView
         android:id="@+id/search_placeholder"
-        android:text="Search the web"
-        android:textColor="#BBBBBB"
+        android:text="@string/search_the_web"
+        android:textColor="@color/hint"
         android:textSize="16sp"
         android:layout_weight="1"
         android:layout_width="0dp"

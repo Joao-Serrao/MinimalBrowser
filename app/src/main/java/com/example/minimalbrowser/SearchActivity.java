@@ -5,13 +5,16 @@ import android.animation.AnimatorListenerAdapter;
 import android.animation.ValueAnimator;
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.content.Intent;
 import android.content.res.Configuration;
 import android.graphics.Rect;
+import android.net.Uri;
 import android.os.Bundle;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.WindowManager;
+import android.view.ViewTreeObserver;
+import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.webkit.WebView;
 import android.widget.EditText;
@@ -24,11 +27,23 @@ import androidx.appcompat.app.AppCompatActivity;
 
 public class SearchActivity extends AppCompatActivity {
 
+    private static final String HOME_URL = "https://duckduckgo.com/?kp=-2&ka=-1";
+    private static final String SEARCH_URL = "https://duckduckgo.com/?q=%s&kp=-2&ka=-1";
+    private static final String SECONDARY_HOME_URL = "https://claude.ai/";
+
+    private static final String EXTRA_FROM_WIDGET = "fromWidget";
+    private static final int DOUBLE_TAP_MS = 300;
+    private static final long ANIM_MS = 250;
+    private static final float MIN_PANE_FRACTION = 0.1f;
+
     private WebView mainWebView;
     private WebView secondaryWebView;
     private WebView activeWebView;
 
     private EditText searchInput;
+    private ImageButton toggleSearchButton;
+    private LinearLayout searchContainer;
+    private FrameLayout webArea;
     private FrameLayout leftContainer;
     private FrameLayout rightContainer;
     private LinearLayout splitContainer;
@@ -43,190 +58,193 @@ public class SearchActivity extends AppCompatActivity {
     private float savedLeftWeight = 0.5f;
     private float savedRightWeight = 0.5f;
 
-    private ImageButton toggleSearchButton;
-    private LinearLayout searchContainer;
+    private View rootView;
+    private ViewTreeObserver.OnGlobalLayoutListener keyboardListener;
+    private int lastKeyboardInset = -1;
 
-
-
-    @SuppressLint({"SetJavaScriptEnabled", "ClickableViewAccessibility"})
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+        // The resize mode is declared in the manifest; setting it here as well
+        // used the deprecated SOFT_INPUT_ADJUST_RESIZE constant for no gain.
         setContentView(R.layout.activity_search);
 
-        enableImmersiveMode();
+        bindViews();
+        SystemUi.hideBars(this);
         applyKeyboardResizeWorkaround();
 
-        searchInput = findViewById(R.id.search_input);
-        ImageButton searchButton = findViewById(R.id.search_button);
-        ImageButton homeButton = findViewById(R.id.home_button);
-        ImageButton toggleSplitButton = findViewById(R.id.toggle_split_button);
-        ImageButton toggleSearchButton = findViewById(R.id.toggle_search_button); // arrow button
+        mainWebView = WebViewHolder.create(this);
+        attachWebView(leftContainer, mainWebView);
+        activeWebView = mainWebView;
+        setupWebViewTouchListener(mainWebView);
+        mainWebView.loadUrl(HOME_URL);
 
+        setupSearch();
+        setupSearchBarToggle();
+        setupSplitControls();
+        setupBackHandling();
+
+        handleWidgetLaunch(getIntent());
+    }
+
+    private void bindViews() {
+        rootView = findViewById(R.id.root_layout);
+        searchInput = findViewById(R.id.search_input);
+        searchContainer = findViewById(R.id.searchContainer);
+        toggleSearchButton = findViewById(R.id.toggle_search_button);
+        webArea = findViewById(R.id.web_area);
         splitContainer = findViewById(R.id.web_split_container);
         leftContainer = findViewById(R.id.web_container_left);
         rightContainer = findViewById(R.id.web_container_right);
+    }
 
-        // Main WebView
-        mainWebView = WebViewHolder.getWebView(this);
-        attachWebView(leftContainer, mainWebView);
-        activeWebView = mainWebView;
+    /**
+     * The widget uses singleTop, so a tap while the app is already running
+     * arrives here rather than in {@link #onCreate}.
+     */
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleWidgetLaunch(intent);
+    }
 
-        setupWebViewClickListener(mainWebView);
-        loadHomePage();
+    private void handleWidgetLaunch(Intent intent) {
+        if (intent == null || !intent.getBooleanExtra(EXTRA_FROM_WIDGET, false)) return;
 
-        // Widget launch: focus input
-        boolean fromWidget = getIntent().getBooleanExtra("fromWidget", false);
-        if (fromWidget) {
-            searchInput.post(() -> {
-                searchInput.requestFocus();
-                InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-                if (imm != null) {
-                    imm.showSoftInput(searchInput, InputMethodManager.SHOW_IMPLICIT);
-                }
-            });
+        setSearchBarVisible(true, false);
+        focusSearchInput();
+    }
+
+    // ------------------- SEARCH -------------------
+
+    private void setupSearch() {
+        ImageButton searchButton = findViewById(R.id.search_button);
+        ImageButton homeButton = findViewById(R.id.home_button);
+
+        searchButton.setOnClickListener(v -> performSearch());
+
+        searchInput.setOnEditorActionListener((v, actionId, event) -> {
+            // Without this guard the listener also fires for
+            // IME_ACTION_UNSPECIFIED and for both the down and up of a
+            // hardware Enter, running the search two or three times.
+            if (actionId == EditorInfo.IME_ACTION_SEARCH
+                    || actionId == EditorInfo.IME_ACTION_GO
+                    || actionId == EditorInfo.IME_ACTION_DONE) {
+                performSearch();
+                return true;
+            }
+            return false;
+        });
+
+        homeButton.setOnClickListener(v -> {
+            searchInput.setText("");
+            hideKeyboard();
+            if (activeWebView != null) activeWebView.loadUrl(HOME_URL);
+        });
+    }
+
+    private void performSearch() {
+        String query = searchInput.getText().toString().trim();
+        hideKeyboard();
+        if (query.isEmpty() || activeWebView == null) return;
+
+        // Uri.encode, not a manual space swap: a query containing &, #, + or %
+        // used to produce a broken or truncated URL.
+        activeWebView.loadUrl(String.format(SEARCH_URL, Uri.encode(query)));
+    }
+
+    // ------------------- SEARCH BAR TOGGLE -------------------
+
+    private void setupSearchBarToggle() {
+        toggleSearchButton.setOnClickListener(v ->
+                setSearchBarVisible(searchContainer.getVisibility() != View.VISIBLE, true));
+    }
+
+    private void setSearchBarVisible(boolean visible, boolean animate) {
+        boolean alreadyVisible = searchContainer.getVisibility() == View.VISIBLE;
+        if (visible == alreadyVisible && searchContainer.getLayoutParams().height
+                == ViewGroup.LayoutParams.WRAP_CONTENT) {
+            if (visible) focusSearchInput();
+            return;
         }
 
-        // Search
-        Runnable performSearch = () -> {
-            if (activeWebView != null) {
-                String query = searchInput.getText().toString().trim();
-                if (!query.isEmpty()) {
-                    String searchUrl = "https://duckduckgo.com/?q=" + query.replace(" ", "+") + "&kp=-2&ka=-1";
-                    activeWebView.loadUrl(searchUrl);
-                }
-            }
+        toggleSearchButton.setImageResource(
+                visible ? R.drawable.ic_arrow_up : R.drawable.ic_arrow_down);
+
+        if (!animate) {
+            setSearchBarHeight(visible ? ViewGroup.LayoutParams.WRAP_CONTENT : 0);
+            searchContainer.setVisibility(visible ? View.VISIBLE : View.GONE);
+            if (visible) focusSearchInput();
+            return;
+        }
+
+        if (visible) {
+            searchContainer.setVisibility(View.VISIBLE);
+            animateSearchBar(0, measureSearchBarHeight(), true);
+            focusSearchInput();
+        } else {
             hideKeyboard();
-        };
-        searchButton.setOnClickListener(v -> performSearch.run());
-        searchInput.setOnEditorActionListener((v, actionId, event) -> {
-            performSearch.run();
-            return true;
-        });
+            animateSearchBar(searchContainer.getHeight(), 0, false);
+        }
+    }
 
-        // Home button
-        homeButton.setOnClickListener(v -> {
-            hideKeyboard();
-            if (activeWebView != null)
-                activeWebView.loadUrl("https://duckduckgo.com/?kp=-2&ka=-1");
-        });
+    /**
+     * The old code animated to a hardcoded 48dp, which ignored the container's
+     * 8dp padding and clipped the field, and it left the height pinned to that
+     * pixel value forever instead of restoring WRAP_CONTENT.
+     */
+    private int measureSearchBarHeight() {
+        int width = ((View) searchContainer.getParent()).getWidth();
+        searchContainer.measure(
+                View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+        return searchContainer.getMeasuredHeight();
+    }
 
-        searchContainer = findViewById(R.id.searchContainer);
-
-        // Toggle search bar with smooth animation
-        toggleSearchButton.setOnClickListener(v -> {
-            boolean isVisible = searchContainer.getVisibility() == View.VISIBLE;
-
-            if (isVisible) {
-                // Hide search container
-                int startHeight = searchContainer.getHeight();
-                ValueAnimator animator = ValueAnimator.ofInt(startHeight, 0);
-                animator.setDuration(250);
-                animator.addUpdateListener(animation -> {
-                    int val = (int) animation.getAnimatedValue();
-                    LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) searchContainer.getLayoutParams();
-                    lp.height = val;
-                    searchContainer.setLayoutParams(lp);
-                });
-                animator.addListener(new AnimatorListenerAdapter() {
-                    @Override
-                    public void onAnimationEnd(Animator animation) {
-                        searchContainer.setVisibility(View.GONE);
-                        toggleSearchButton.setImageResource(R.drawable.ic_arrow_down);
-                    }
-                });
-                animator.start();
-            } else {
-                // Show search container
-                searchContainer.setVisibility(View.VISIBLE);
-                toggleSearchButton.setImageResource(R.drawable.ic_arrow_up);
-
-                int targetHeight = dpToPx(48); // desired height
-                ValueAnimator animator = ValueAnimator.ofInt(0, targetHeight);
-                animator.setDuration(250);
-                animator.addUpdateListener(animation -> {
-                    int val = (int) animation.getAnimatedValue();
-                    LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) searchContainer.getLayoutParams();
-                    lp.height = val;
-                    searchContainer.setLayoutParams(lp);
-                });
-                animator.start();
-
-                // Show keyboard
-                searchInput.post(() -> {
-                    searchInput.requestFocus();
-                    InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-                    if (imm != null) imm.showSoftInput(searchInput, InputMethodManager.SHOW_IMPLICIT);
-                });
-            }
-        });
-
-
-
-
-        // Toggle split button
-        toggleSplitButton.setOnClickListener(v -> {
-            hideKeyboard();
-            toggleSplit();
-        });
-
-        toggleSplitButton.setOnLongClickListener(v -> {
-            hideKeyboard();
-            if (!isSplit) {
-                secondaryWebView = new WebView(this);
-                WebViewHolder.applySettings(secondaryWebView);
-                attachWebView(rightContainer, secondaryWebView);
-                rightContainer.setVisibility(View.VISIBLE);
-                secondaryWebView.loadUrl("https://chat.openai.com/");
-                isSplit = true;
-                setupWebViewClickListener(secondaryWebView);
-                savedLeftWeight = 0.5f;
-                savedRightWeight = 0.5f;
-                adjustSplitLayoutWithSavedWeights(getResources().getConfiguration().orientation);
-                activeWebView = secondaryWebView;
-                lastClickedWebView = secondaryWebView;
-            } else {
-                swapWebViews();
-            }
-            return true;
-        });
-
-        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+    private void animateSearchBar(int from, int to, boolean showing) {
+        ValueAnimator animator = ValueAnimator.ofInt(from, to);
+        animator.setDuration(ANIM_MS);
+        animator.addUpdateListener(a -> setSearchBarHeight((int) a.getAnimatedValue()));
+        animator.addListener(new AnimatorListenerAdapter() {
             @Override
-            public void handleOnBackPressed() {
-                if (activeWebView != null && activeWebView.canGoBack()) {
-                    activeWebView.goBack();
+            public void onAnimationEnd(Animator animation) {
+                if (showing) {
+                    setSearchBarHeight(ViewGroup.LayoutParams.WRAP_CONTENT);
                 } else {
-                    finish();
+                    searchContainer.setVisibility(View.GONE);
                 }
             }
         });
+        animator.start();
     }
 
-    // Helper dp → px
-    private int dpToPx(int dp) {
-        return Math.round(dp * getResources().getDisplayMetrics().density);
+    private void setSearchBarHeight(int height) {
+        ViewGroup.LayoutParams lp = searchContainer.getLayoutParams();
+        lp.height = height;
+        searchContainer.setLayoutParams(lp);
     }
 
-
-
+    private void focusSearchInput() {
+        searchInput.post(() -> {
+            searchInput.requestFocus();
+            InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+            if (imm != null) imm.showSoftInput(searchInput, InputMethodManager.SHOW_IMPLICIT);
+        });
+    }
 
     // ------------------- KEYBOARD HANDLING -------------------
+
     @Override
     public boolean dispatchTouchEvent(MotionEvent ev) {
         View view = getCurrentFocus();
-        if (view instanceof EditText) {
-            int[] scrcoords = new int[2];
-            view.getLocationOnScreen(scrcoords);
-            float x = ev.getRawX() + view.getLeft() - scrcoords[0];
-            float y = ev.getRawY() + view.getTop() - scrcoords[1];
-
-            if (ev.getAction() == MotionEvent.ACTION_DOWN
-                    && (x < view.getLeft() || x > view.getRight()
-                    || y < view.getTop() || y > view.getBottom())) {
-
+        if (view instanceof EditText && ev.getAction() == MotionEvent.ACTION_DOWN) {
+            int[] coords = new int[2];
+            view.getLocationOnScreen(coords);
+            Rect bounds = new Rect(coords[0], coords[1],
+                    coords[0] + view.getWidth(), coords[1] + view.getHeight());
+            if (!bounds.contains((int) ev.getRawX(), (int) ev.getRawY())) {
                 hideKeyboard();
             }
         }
@@ -241,61 +259,124 @@ public class SearchActivity extends AppCompatActivity {
             focus.clearFocus();
         }
     }
-    // -----------------------------------------------------------
+
+    /**
+     * Immersive mode and adjustResize do not cooperate, so the keyboard height
+     * is applied as bottom padding by hand.
+     *
+     * The listener is now retained so it can be unregistered, and padding is
+     * only written when the value actually changes — setting it unconditionally
+     * from inside a layout pass re-triggers layout.
+     */
+    private void applyKeyboardResizeWorkaround() {
+        keyboardListener = () -> {
+            Rect r = new Rect();
+            rootView.getWindowVisibleDisplayFrame(r);
+            int screenHeight = rootView.getRootView().getHeight();
+            int keypadHeight = screenHeight - r.bottom;
+            int inset = (keypadHeight > screenHeight * 0.15) ? keypadHeight : 0;
+
+            if (inset != lastKeyboardInset) {
+                lastKeyboardInset = inset;
+                rootView.setPadding(0, 0, 0, inset);
+            }
+        };
+        rootView.getViewTreeObserver().addOnGlobalLayoutListener(keyboardListener);
+    }
 
     // ------------------- SPLIT WEBVIEW HANDLING -------------------
-    private void toggleSplit() {
-        int orientation = getResources().getConfiguration().orientation;
 
-        if (!isSplit) {
-            if (secondaryWebView == null) {
-                secondaryWebView = new WebView(this);
-                WebViewHolder.applySettings(secondaryWebView);
-                secondaryWebView.loadUrl("https://chat.openai.com/");
-                setupWebViewClickListener(secondaryWebView);
-                savedLeftWeight = 0.5f;
-                savedRightWeight = 0.5f;
-            }
+    private void setupSplitControls() {
+        ImageButton toggleSplitButton = findViewById(R.id.toggle_split_button);
 
-            attachWebView(rightContainer, secondaryWebView);
-            rightContainer.setVisibility(View.VISIBLE);
-            isSplit = true;
+        toggleSplitButton.setOnClickListener(v -> {
+            hideKeyboard();
+            toggleSplit();
+        });
 
-            adjustSplitLayoutWithSavedWeights(orientation);
-
-            if (lastClickedWebView != null &&
-                    (lastClickedWebView == mainWebView || lastClickedWebView == secondaryWebView)) {
-                activeWebView = lastClickedWebView;
-            } else {
+        toggleSplitButton.setOnLongClickListener(v -> {
+            hideKeyboard();
+            if (!isSplit) {
+                openSplit();
+                // Long-press opens the second pane and focuses it immediately.
                 activeWebView = secondaryWebView;
+                lastClickedWebView = secondaryWebView;
+            } else {
+                swapWebViews();
             }
+            return true;
+        });
+    }
+
+    private void toggleSplit() {
+        if (isSplit) closeSplit();
+        else openSplit();
+    }
+
+    private void openSplit() {
+        ensureSecondaryWebView();
+
+        attachWebView(rightContainer, secondaryWebView);
+        rightContainer.setVisibility(View.VISIBLE);
+        secondaryWebView.onResume();
+        isSplit = true;
+
+        adjustSplitLayoutWithSavedWeights(getResources().getConfiguration().orientation);
+
+        if (lastClickedWebView == mainWebView || lastClickedWebView == secondaryWebView) {
+            activeWebView = lastClickedWebView;
         } else {
-            LinearLayout.LayoutParams lpLeft = (LinearLayout.LayoutParams) leftContainer.getLayoutParams();
-            LinearLayout.LayoutParams lpRight = (LinearLayout.LayoutParams) rightContainer.getLayoutParams();
-            savedLeftWeight = lpLeft.weight;
-            savedRightWeight = lpRight.weight;
-
-            exitResizeMode();
-            rightContainer.removeAllViews();
-            rightContainer.setVisibility(View.GONE);
-
-            isSplit = false;
-            leftContainer.setLayoutParams(new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT));
-            splitContainer.setOrientation(LinearLayout.HORIZONTAL);
-            activeWebView = mainWebView;
+            activeWebView = secondaryWebView;
         }
     }
 
-    private void setupWebViewClickListener(WebView webView) {
+    private void closeSplit() {
+        LinearLayout.LayoutParams lpLeft = (LinearLayout.LayoutParams) leftContainer.getLayoutParams();
+        LinearLayout.LayoutParams lpRight = (LinearLayout.LayoutParams) rightContainer.getLayoutParams();
+        savedLeftWeight = lpLeft.weight;
+        savedRightWeight = lpRight.weight;
+
+        exitResizeMode();
+        rightContainer.removeAllViews();
+        rightContainer.setVisibility(View.GONE);
+
+        // Detaching alone does not stop timers or media: without onPause the
+        // hidden pane keeps playing audio.
+        if (secondaryWebView != null) secondaryWebView.onPause();
+
+        isSplit = false;
+        leftContainer.setLayoutParams(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT));
+        splitContainer.setOrientation(LinearLayout.HORIZONTAL);
+        activeWebView = mainWebView;
+        lastClickedWebView = mainWebView;
+    }
+
+    /**
+     * Single creation path. The long-press handler used to build its own
+     * WebView unconditionally, overwriting and leaking any existing one.
+     */
+    private void ensureSecondaryWebView() {
+        if (secondaryWebView != null) return;
+
+        secondaryWebView = WebViewHolder.create(this);
+        setupWebViewTouchListener(secondaryWebView);
+        secondaryWebView.loadUrl(SECONDARY_HOME_URL);
+        savedLeftWeight = 0.5f;
+        savedRightWeight = 0.5f;
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
+    private void setupWebViewTouchListener(WebView webView) {
         webView.setOnTouchListener((v, event) -> {
             if (event.getAction() == MotionEvent.ACTION_DOWN) {
                 activeWebView = webView;
                 long now = System.currentTimeMillis();
-                if (lastClickedWebView == webView && now - lastClickTime < 300) {
-                    if (isResizing) exitResizeMode();
-                    else enterResizeMode();
+                if (lastClickedWebView == webView && now - lastClickTime < DOUBLE_TAP_MS) {
+                    // Exiting is handled by the overlay's own double tap; while
+                    // resizing the overlay swallows these events anyway.
+                    if (isSplit && !isResizing) enterResizeMode();
                     lastClickTime = 0;
                 } else {
                     lastClickTime = now;
@@ -306,23 +387,24 @@ public class SearchActivity extends AppCompatActivity {
         });
     }
 
+    @SuppressLint("ClickableViewAccessibility")
     private void enterResizeMode() {
         if (!isSplit || resizeOverlay != null) return;
 
         resizeOverlay = new View(this);
-        FrameLayout.LayoutParams overlayParams = new FrameLayout.LayoutParams(
+        // Added to web_area, not root_layout, so the top bar and search field
+        // stay usable while resizing.
+        webArea.addView(resizeOverlay, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT
-        );
-        ((FrameLayout) findViewById(R.id.root_layout)).addView(resizeOverlay, overlayParams);
-        resizeOverlay.setBackgroundColor(0x00000000);
+                ViewGroup.LayoutParams.MATCH_PARENT));
+        resizeOverlay.setBackgroundColor(0x22FFFFFF);
         resizeOverlay.setOnTouchListener(resizeTouchListener);
         isResizing = true;
     }
 
     private void exitResizeMode() {
         if (resizeOverlay != null) {
-            ((ViewGroup) findViewById(R.id.root_layout)).removeView(resizeOverlay);
+            webArea.removeView(resizeOverlay);
             resizeOverlay = null;
         }
         isResizing = false;
@@ -339,29 +421,33 @@ public class SearchActivity extends AppCompatActivity {
             if (!isSplit) return false;
 
             int orientation = getResources().getConfiguration().orientation;
+            boolean horizontal = orientation == Configuration.ORIENTATION_LANDSCAPE;
             LinearLayout.LayoutParams lpLeft = (LinearLayout.LayoutParams) leftContainer.getLayoutParams();
             LinearLayout.LayoutParams lpRight = (LinearLayout.LayoutParams) rightContainer.getLayoutParams();
 
             switch (event.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN:
                     long now = System.currentTimeMillis();
-                    if (now - lastTapTime < 300) {
+                    if (now - lastTapTime < DOUBLE_TAP_MS) {
                         exitResizeMode();
                         return true;
                     }
                     lastTapTime = now;
 
-                    startPos = (orientation == Configuration.ORIENTATION_LANDSCAPE) ? event.getX() : event.getY();
+                    startPos = horizontal ? event.getX() : event.getY();
                     startLeftWeight = lpLeft.weight;
                     startRightWeight = lpRight.weight;
                     return true;
 
                 case MotionEvent.ACTION_MOVE:
-                    float currentPos = (orientation == Configuration.ORIENTATION_LANDSCAPE) ? event.getX() : event.getY();
+                    float currentPos = horizontal ? event.getX() : event.getY();
                     float delta = currentPos - startPos;
-                    float total = (orientation == Configuration.ORIENTATION_LANDSCAPE) ? splitContainer.getWidth() : splitContainer.getHeight();
-                    float leftFrac = startLeftWeight / (startLeftWeight + startRightWeight) + delta / total;
-                    leftFrac = Math.max(0.1f, Math.min(0.9f, leftFrac));
+                    float total = horizontal ? splitContainer.getWidth() : splitContainer.getHeight();
+                    if (total <= 0) return true;
+
+                    float leftFrac = startLeftWeight / (startLeftWeight + startRightWeight)
+                            + delta / total;
+                    leftFrac = Math.max(MIN_PANE_FRACTION, Math.min(1 - MIN_PANE_FRACTION, leftFrac));
                     lpLeft.weight = leftFrac;
                     lpRight.weight = 1 - leftFrac;
                     leftContainer.setLayoutParams(lpLeft);
@@ -381,12 +467,16 @@ public class SearchActivity extends AppCompatActivity {
 
         if (orientation == Configuration.ORIENTATION_LANDSCAPE) {
             splitContainer.setOrientation(LinearLayout.HORIZONTAL);
-            leftContainer.setLayoutParams(new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, savedLeftWeight));
-            rightContainer.setLayoutParams(new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, savedRightWeight));
+            leftContainer.setLayoutParams(new LinearLayout.LayoutParams(
+                    0, ViewGroup.LayoutParams.MATCH_PARENT, savedLeftWeight));
+            rightContainer.setLayoutParams(new LinearLayout.LayoutParams(
+                    0, ViewGroup.LayoutParams.MATCH_PARENT, savedRightWeight));
         } else {
             splitContainer.setOrientation(LinearLayout.VERTICAL);
-            leftContainer.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, savedLeftWeight));
-            rightContainer.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, savedRightWeight));
+            leftContainer.setLayoutParams(new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, 0, savedLeftWeight));
+            rightContainer.setLayoutParams(new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, 0, savedRightWeight));
         }
     }
 
@@ -403,11 +493,10 @@ public class SearchActivity extends AppCompatActivity {
         attachWebView(leftContainer, mainWebView);
         attachWebView(rightContainer, secondaryWebView);
 
-        if (activeWebView == mainWebView) activeWebView = secondaryWebView;
-        else if (activeWebView == secondaryWebView) activeWebView = mainWebView;
-
-        if (lastClickedWebView == mainWebView) lastClickedWebView = secondaryWebView;
-        else if (lastClickedWebView == secondaryWebView) lastClickedWebView = mainWebView;
+        // activeWebView and lastClickedWebView deliberately keep pointing at
+        // the same page. The old code reassigned them after the field swap, so
+        // comparing against the already-swapped references moved focus to the
+        // other page on every swap.
     }
 
     private void attachWebView(ViewGroup container, WebView wv) {
@@ -417,40 +506,85 @@ public class SearchActivity extends AppCompatActivity {
                 ViewGroup.LayoutParams.MATCH_PARENT));
     }
 
-    private void loadHomePage() {
-        if (activeWebView != null)
-            activeWebView.loadUrl("https://duckduckgo.com/?kp=-2&ka=-1");
-    }
+    // ------------------- NAVIGATION -------------------
 
-    private void enableImmersiveMode() {
-        final View decorView = getWindow().getDecorView();
-        decorView.setSystemUiVisibility(
-                View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                        | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                        | View.SYSTEM_UI_FLAG_FULLSCREEN
-                        | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-        );
-    }
-
-    private void applyKeyboardResizeWorkaround() {
-        final View rootView = ((ViewGroup) findViewById(android.R.id.content)).getChildAt(0);
-        rootView.getViewTreeObserver().addOnGlobalLayoutListener(() -> {
-            Rect r = new Rect();
-            rootView.getWindowVisibleDisplayFrame(r);
-            int screenHeight = rootView.getRootView().getHeight();
-            int keypadHeight = screenHeight - r.bottom;
-            if (keypadHeight > screenHeight * 0.15) {
-                rootView.setPadding(0, 0, 0, keypadHeight);
-            } else {
-                rootView.setPadding(0, 0, 0, 0);
+    private void setupBackHandling() {
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                // Unwind UI state before touching history or leaving the app.
+                if (isResizing) {
+                    exitResizeMode();
+                } else if (searchContainer.getVisibility() == View.VISIBLE
+                        && searchInput.hasFocus()) {
+                    setSearchBarVisible(false, true);
+                } else if (activeWebView != null && activeWebView.canGoBack()) {
+                    activeWebView.goBack();
+                } else if (isSplit) {
+                    closeSplit();
+                } else {
+                    finish();
+                }
             }
         });
+    }
+
+    // ------------------- LIFECYCLE -------------------
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (mainWebView != null) mainWebView.onResume();
+        if (isSplit && secondaryWebView != null) secondaryWebView.onResume();
+    }
+
+    @Override
+    protected void onPause() {
+        // Without these the WebViews keep running timers and playing media
+        // after the app is backgrounded.
+        if (mainWebView != null) mainWebView.onPause();
+        if (secondaryWebView != null) secondaryWebView.onPause();
+        super.onPause();
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (rootView != null && keyboardListener != null) {
+            rootView.getViewTreeObserver().removeOnGlobalLayoutListener(keyboardListener);
+            keyboardListener = null;
+        }
+        destroyWebView(mainWebView);
+        destroyWebView(secondaryWebView);
+        mainWebView = null;
+        secondaryWebView = null;
+        activeWebView = null;
+        lastClickedWebView = null;
+        super.onDestroy();
+    }
+
+    private void destroyWebView(WebView wv) {
+        if (wv == null) return;
+        if (wv.getParent() != null) ((ViewGroup) wv.getParent()).removeView(wv);
+        wv.stopLoading();
+        wv.setWebChromeClient(null);
+        wv.destroy();
     }
 
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
         adjustSplitLayoutWithSavedWeights(newConfig.orientation);
-        enableImmersiveMode();
+        SystemUi.hideBars(this);
+    }
+
+    /**
+     * Immersive mode has to be reasserted here. Previously it was only applied
+     * in onCreate and on rotation, so the system bars came back for good after
+     * the keyboard, a dialog, or an app switch.
+     */
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) SystemUi.hideBars(this);
     }
 }
