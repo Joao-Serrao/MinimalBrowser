@@ -480,5 +480,5 @@ Minimal Browser is free and always will be. If you find it useful, you can
 
 # 
 
-##### &nbsp;This project is provided as-is for personal or educational use.
+##### &nbsp;Released under the [MIT License](LICENSE) — free to use, modify, and distribute, with the copyright notice retained. Provided as-is, without warranty.
 
