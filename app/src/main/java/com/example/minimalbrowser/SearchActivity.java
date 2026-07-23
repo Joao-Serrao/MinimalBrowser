@@ -356,16 +356,21 @@ public class SearchActivity extends AppCompatActivity implements WebViewHolder.H
             toggleSplit();
         });
 
-        // Long-press always (re)opens the second pane on Claude, replacing
-        // whatever it was showing, and focuses it.
         toggleSplitButton.setOnLongClickListener(v -> {
             hideKeyboard();
-            ensureSecondaryWebView();
-            if (!isSplit) openSplit();
-            secondaryWebView.loadUrl(SECONDARY_HOME_URL);
-            activeWebView = secondaryWebView;
-            lastClickedWebView = secondaryWebView;
-            refreshOmnibox();
+            if (!isSplit) {
+                // Closed -> open the second pane on Claude, replacing whatever
+                // it last showed, and focus it.
+                ensureSecondaryWebView();
+                openSplit();
+                secondaryWebView.loadUrl(SECONDARY_HOME_URL);
+                activeWebView = secondaryWebView;
+                lastClickedWebView = secondaryWebView;
+                refreshOmnibox();
+            } else {
+                // Already open -> swap the two panes.
+                swapWebViews();
+            }
             return true;
         });
     }
@@ -551,6 +556,24 @@ public class SearchActivity extends AppCompatActivity implements WebViewHolder.H
             rightContainer.setLayoutParams(new LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, 0, savedRightWeight));
         }
+    }
+
+    private void swapWebViews() {
+        if (!isSplit || secondaryWebView == null) return;
+
+        WebView temp = mainWebView;
+        mainWebView = secondaryWebView;
+        secondaryWebView = temp;
+
+        leftContainer.removeAllViews();
+        rightContainer.removeAllViews();
+
+        attachWebView(leftContainer, mainWebView);
+        attachWebView(rightContainer, secondaryWebView);
+
+        // activeWebView and lastClickedWebView deliberately keep pointing at
+        // the same page object, so focus follows the page to its new side
+        // rather than jumping to the other pane.
     }
 
     private void attachWebView(ViewGroup container, WebView wv) {

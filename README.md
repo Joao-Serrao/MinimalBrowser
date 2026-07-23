@@ -52,15 +52,27 @@
 
 ##### 
 
+##### &nbsp;-Smart address bar: type a URL (or domain, localhost, IP) to go straight there, anything else runs a search
+
+##### 
+
+##### &nbsp;-The search field doubles as an omnibox, showing the current page's URL (or the DuckDuckGo query)
+
+##### 
+
 ##### &nbsp;-Quick search input with keyboard support
 
 ##### 
 
-##### &nbsp;-Home button instantly returns to the DuckDuckGo homepage
+##### &nbsp;-Home button instantly returns to the DuckDuckGo homepage and clears the address bar
 
 ##### 
 
 ##### &nbsp;-Optional animated hide/show search bar for maximum screen space
+
+##### 
+
+##### &nbsp;-Swipe left-to-right across the search bar to go back (same as the system Back button)
 
 # 
 
@@ -76,15 +88,15 @@
 
 ##### 
 
-##### &nbsp;-Long-press split button to:
+##### &nbsp;-Long-press the split button:
 
 ##### 
 
-##### &nbsp;-Open a second WebView instantly
+##### &nbsp;-When the second window is closed, it opens a second WebView on Claude (claude.ai), replacing whatever it last showed
 
 ##### 
 
-##### &nbsp;-Swap left/right WebViews
+##### &nbsp;-When the second window is already open, it swaps the left/right WebViews
 
 ##### 
 
@@ -117,6 +129,10 @@
 ##### 
 
 ##### &nbsp;-Tap-to-focus behavior for intuitive multitasking
+
+##### 
+
+##### &nbsp;-Opening the split keeps focus on the window you were already using, so Back keeps driving it
 
 # 
 
@@ -184,7 +200,19 @@
 
 ##### 
 
-##### &nbsp;-Basic ad \& tracker blocking via request interception
+##### &nbsp;-Ad \& tracker blocking via request interception: an ad/tracker domain list, whole-DNS-label matching (ads./adserver./analytics./tracking. on any domain), and ad path fragments
+
+##### 
+
+##### &nbsp;-Redirect-to-ad navigations are cancelled, and popups/new windows are suppressed
+
+##### 
+
+##### &nbsp;-Page load progress bar, and a themed error page with Retry on load failure
+
+##### 
+
+##### &nbsp;-File uploads (\<input type="file"\>) and JavaScript alert/confirm dialogs supported
 
 ##### 
 
@@ -210,7 +238,9 @@
 
 ##### │   ├── Split WebView logic
 
-##### │   ├── Gesture handling
+##### │   ├── Gesture handling (swipe-back, double-tap resize)
+
+##### │   ├── Address bar / omnibox and load progress
 
 ##### │   ├── Keyboard \& immersive mode control
 
@@ -224,7 +254,27 @@
 
 ##### │   ├── Fullscreen video handling
 
-##### │   └── Basic ad blocking
+##### │   ├── Ad \& tracker blocking
+
+##### │   └── File chooser, JS dialogs, error page
+
+##### │
+
+##### ├── UrlUtil.java
+
+##### │   └── URL-vs-search detection and address bar text (unit-tested)
+
+##### │
+
+##### ├── SystemUi.java
+
+##### │   └── Single definition of immersive mode
+
+##### │
+
+##### ├── DownloadsActivity.java / NotificationHelper.java
+
+##### │   └── Download list and notifications
 
 ##### │
 
@@ -294,7 +344,7 @@
 
 ##### 
 
-##### &nbsp;-Drag anywhere on screen to resize panes
+##### &nbsp;-Drag within the web area to resize panes (the top bar stays usable)
 
 ##### 
 
@@ -314,7 +364,7 @@
 
 ##### 
 
-##### &nbsp;-Cookies are enabled only for WebView compatibility
+##### &nbsp;-Cookies are enabled for WebView compatibility, including third-party cookies (needed to stay signed in to sites such as Claude). A toggle for this is on the improvements list.
 
 ##### 
 
@@ -326,7 +376,7 @@
 
 # 
 
-##### &nbsp;-Android API level compatible with WebView
+##### &nbsp;-Android 7.0 (API 24) or newer
 
 ##### 
 
@@ -342,27 +392,27 @@
 
 # 
 
-##### &nbsp;-URL bar support
-
-##### 
-
 ##### &nbsp;-Tab management
 
 ##### 
 
-##### &nbsp;-Custom search engines
+##### &nbsp;-Custom search engines and a configurable second-pane URL (currently DuckDuckGo and Claude)
 
 ##### 
 
-##### &nbsp;-Advanced content blocking
+##### &nbsp;-Advanced content blocking (filter-list support rather than a built-in domain list)
 
 ##### 
 
-##### &nbsp;-Dark mode toggle
+##### &nbsp;-Settings screen (ad-block toggle, desktop mode, third-party cookie toggle)
 
-# 
+##### 
 
-##### &nbsp;-Gesture navigation (swipe back/forward)
+##### &nbsp;-Persist split state and open pages across process death
+
+##### 
+
+##### &nbsp;-Forward gesture (swipe right-to-left) to complement swipe-back
 
 # 
 
