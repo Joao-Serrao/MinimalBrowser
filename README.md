@@ -472,10 +472,7 @@ Then `./gradlew assembleRelease` produces a signed, R8-shrunk APK at
 # 
 
 Minimal Browser is free and always will be. If you find it useful, you can
-[buy me a coffee](https://www.buymeacoffee.com/YOUR_USERNAME) — appreciated but never expected.
-
-<!-- Replace YOUR_USERNAME above (and in docs/index.html and .github/FUNDING.yml)
-     with your Buy Me a Coffee username, or delete this section. -->
+[buy me a coffee](https://www.buymeacoffee.com/joao.serrao) — appreciated but never expected.
 
 # 
 

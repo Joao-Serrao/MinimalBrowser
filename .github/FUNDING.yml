@@ -1,12 +1,2 @@
 # Adds a "Sponsor" button to the top of the GitHub repo page.
-#
-# Uncomment the line below and replace YOUR_USERNAME with your Buy Me a Coffee
-# username (the last part of your buymeacoffee.com/... link). Leaving it
-# commented out simply means no Sponsor button is shown.
-
-# buy_me_a_coffee: YOUR_USERNAME
-
-# Other platforms GitHub supports, if you prefer one of these instead:
-# github: [Joao-Serrao]
-# ko_fi: YOUR_USERNAME
-# custom: ["https://paypal.me/YOUR_USERNAME"]
+buy_me_a_coffee: joao.serrao
