@@ -1,4 +1,4 @@
-package com.example.minimalbrowser;
+package io.github.joaoserrao.minimalbrowser;
 
 import java.net.URLDecoder;
 import java.util.regex.Pattern;

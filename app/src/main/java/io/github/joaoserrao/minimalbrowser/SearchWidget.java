@@ -1,4 +1,4 @@
-package com.example.minimalbrowser;
+package io.github.joaoserrao.minimalbrowser;
 
 import android.app.PendingIntent;
 import android.appwidget.AppWidgetManager;

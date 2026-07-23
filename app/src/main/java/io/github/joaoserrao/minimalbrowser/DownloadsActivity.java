@@ -1,4 +1,4 @@
-package com.example.minimalbrowser;
+package io.github.joaoserrao.minimalbrowser;
 
 import android.app.DownloadManager;
 import android.content.Intent;
