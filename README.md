@@ -10,6 +10,23 @@
 
 # 
 
+## Download
+
+[![Latest release](https://img.shields.io/github/v/release/Joao-Serrao/MinimalBrowser?label=latest&color=3ddc84)](https://github.com/Joao-Serrao/MinimalBrowser/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/Joao-Serrao/MinimalBrowser/total?color=3ddc84)](https://github.com/Joao-Serrao/MinimalBrowser/releases)
+
+**[⬇️ Download the latest APK](https://github.com/Joao-Serrao/MinimalBrowser/releases/latest/download/MinimalBrowser.apk)** &nbsp;·&nbsp; [All releases](https://github.com/Joao-Serrao/MinimalBrowser/releases) &nbsp;·&nbsp; [Download page](https://joao-serrao.github.io/MinimalBrowser/)
+
+Requires **Android 7.0 (API 24)** or newer.
+
+1. Download the APK on your phone and open it.
+2. Android will ask permission to install from this source — allow it (the app is not on the Play Store, so it is flagged as an unknown source).
+3. Tap **Install**. For the widget: long-press the home screen → **Widgets** → **Minimal Browser**.
+
+Prefer to build it yourself? `./gradlew assembleRelease` — see [Building](#building).
+
+# 
+
 ## Motivation
 
 
@@ -388,6 +405,40 @@
 
 # 
 
+## Building
+
+Clone the repo and build with the Gradle wrapper (JDK 17+ and the Android SDK required):
+
+```bash
+./gradlew assembleDebug     # app/build/outputs/apk/debug/app-debug.apk
+./gradlew test              # unit tests
+```
+
+For a signed release build, create a `keystore.properties` in the project root
+(it is gitignored, and the release build falls back to unsigned without it):
+
+```properties
+storeFile=release-keystore.jks
+storePassword=your-store-password
+keyAlias=your-alias
+keyPassword=your-key-password
+```
+
+Generate the keystore once with:
+
+```bash
+keytool -genkeypair -v -keystore release-keystore.jks -alias your-alias \
+  -keyalg RSA -keysize 2048 -validity 10000
+```
+
+Then `./gradlew assembleRelease` produces a signed, R8-shrunk APK at
+`app/build/outputs/apk/release/app-release.apk`.
+
+> Keep the keystore and its password safe and backed up. Android will refuse an
+> update signed with a different key.
+
+# 
+
 ## Possible Improvements
 
 # 
@@ -413,6 +464,18 @@
 ##### 
 
 ##### &nbsp;-Forward gesture (swipe right-to-left) to complement swipe-back
+
+# 
+
+## Support
+
+# 
+
+Minimal Browser is free and always will be. If you find it useful, you can
+[buy me a coffee](https://www.buymeacoffee.com/YOUR_USERNAME) — appreciated but never expected.
+
+<!-- Replace YOUR_USERNAME above (and in docs/index.html and .github/FUNDING.yml)
+     with your Buy Me a Coffee username, or delete this section. -->
 
 # 
 
