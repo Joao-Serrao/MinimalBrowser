@@ -10,6 +10,7 @@ import android.content.res.Configuration;
 import android.graphics.Rect;
 import android.net.Uri;
 import android.os.Bundle;
+import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
@@ -80,6 +81,8 @@ public class SearchActivity extends AppCompatActivity implements WebViewHolder.H
     private View rootView;
     private ViewTreeObserver.OnGlobalLayoutListener keyboardListener;
     private int lastKeyboardInset = -1;
+
+    private GestureDetector searchSwipeDetector;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -163,6 +166,41 @@ public class SearchActivity extends AppCompatActivity implements WebViewHolder.H
             hideKeyboard();
             if (activeWebView != null) activeWebView.loadUrl(HOME_URL);
         });
+
+        setupSearchBarSwipe();
+    }
+
+    private int dpToPx(int dp) {
+        return Math.round(dp * getResources().getDisplayMetrics().density);
+    }
+
+    /** A left-to-right swipe across the search bar triggers Back. */
+    @SuppressLint("ClickableViewAccessibility")
+    private void setupSearchBarSwipe() {
+        final int minDistance = dpToPx(64);
+        final int minVelocity = dpToPx(200);
+
+        searchSwipeDetector = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
+            @Override
+            public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX, float velocityY) {
+                if (e1 == null || e2 == null) return false;
+                float dx = e2.getX() - e1.getX();
+                float dy = e2.getY() - e1.getY();
+                // Left-to-right, clearly horizontal, and fast enough.
+                if (dx > minDistance && Math.abs(dx) > Math.abs(dy) * 2
+                        && Math.abs(velocityX) > minVelocity) {
+                    goBackOrUnwind();
+                    return true;
+                }
+                return false;
+            }
+        });
+
+        // Returning false for everything except a detected fling keeps normal
+        // tap-to-edit behaviour on the input intact.
+        View.OnTouchListener swipeListener = (v, event) -> searchSwipeDetector.onTouchEvent(event);
+        searchInput.setOnTouchListener(swipeListener);
+        searchContainer.setOnTouchListener(swipeListener);
     }
 
     private void performSearch() {
@@ -318,17 +356,16 @@ public class SearchActivity extends AppCompatActivity implements WebViewHolder.H
             toggleSplit();
         });
 
+        // Long-press always (re)opens the second pane on Claude, replacing
+        // whatever it was showing, and focuses it.
         toggleSplitButton.setOnLongClickListener(v -> {
             hideKeyboard();
-            if (!isSplit) {
-                openSplit();
-                // Long-press opens the second pane and focuses it immediately.
-                activeWebView = secondaryWebView;
-                lastClickedWebView = secondaryWebView;
-                refreshOmnibox();
-            } else {
-                swapWebViews();
-            }
+            ensureSecondaryWebView();
+            if (!isSplit) openSplit();
+            secondaryWebView.loadUrl(SECONDARY_HOME_URL);
+            activeWebView = secondaryWebView;
+            lastClickedWebView = secondaryWebView;
+            refreshOmnibox();
             return true;
         });
     }
@@ -516,25 +553,6 @@ public class SearchActivity extends AppCompatActivity implements WebViewHolder.H
         }
     }
 
-    private void swapWebViews() {
-        if (!isSplit || secondaryWebView == null) return;
-
-        WebView temp = mainWebView;
-        mainWebView = secondaryWebView;
-        secondaryWebView = temp;
-
-        leftContainer.removeAllViews();
-        rightContainer.removeAllViews();
-
-        attachWebView(leftContainer, mainWebView);
-        attachWebView(rightContainer, secondaryWebView);
-
-        // activeWebView and lastClickedWebView deliberately keep pointing at
-        // the same page. The old code reassigned them after the field swap, so
-        // comparing against the already-swapped references moved focus to the
-        // other page on every swap.
-    }
-
     private void attachWebView(ViewGroup container, WebView wv) {
         if (wv.getParent() != null) ((ViewGroup) wv.getParent()).removeView(wv);
         container.addView(wv, new FrameLayout.LayoutParams(
@@ -592,21 +610,26 @@ public class SearchActivity extends AppCompatActivity implements WebViewHolder.H
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
-                // Unwind UI state before touching history or leaving the app.
-                if (isResizing) {
-                    exitResizeMode();
-                } else if (searchContainer.getVisibility() == View.VISIBLE
-                        && searchInput.hasFocus()) {
-                    setSearchBarVisible(false, true);
-                } else if (activeWebView != null && activeWebView.canGoBack()) {
-                    activeWebView.goBack();
-                } else if (isSplit) {
-                    closeSplit();
-                } else {
-                    finish();
-                }
+                goBackOrUnwind();
             }
         });
+    }
+
+    /** Shared by the system Back button and the search-bar swipe gesture. */
+    private void goBackOrUnwind() {
+        // Unwind UI state before touching history or leaving the app.
+        if (isResizing) {
+            exitResizeMode();
+        } else if (searchContainer.getVisibility() == View.VISIBLE
+                && searchInput.hasFocus()) {
+            setSearchBarVisible(false, true);
+        } else if (activeWebView != null && activeWebView.canGoBack()) {
+            activeWebView.goBack();
+        } else if (isSplit) {
+            closeSplit();
+        } else {
+            finish();
+        }
     }
 
     // ------------------- LIFECYCLE -------------------
