@@ -1,0 +1,24 @@
+Minimal Browser is a lightweight, distraction-free Android browser built around WebView. It drops tabs and clutter in favour of split-screen browsing, gesture controls and a search-first design.
+
+<b>Split-screen browsing</b>
+Browse two pages at once instead of juggling tabs. Drag to resize the panes, long-press to swap them, and the layout adapts to both portrait and landscape.
+
+<b>Search-first</b>
+DuckDuckGo is the default search engine. Type a URL to go straight there, or anything else to run a search. The search bar doubles as an address bar showing the current page.
+
+<b>Ad and tracker blocking</b>
+Ad and tracker domains are blocked at request level, taps that try to redirect you to an ad page are cancelled, and pop-ups are suppressed.
+
+<b>Gesture controls</b>
+Swipe left-to-right across the search bar to go back, double-tap a pane to enter resize mode, and hide the search bar for a full screen.
+
+<b>Immersive full-screen</b>
+The status and navigation bars stay hidden, with proper full-screen video playback.
+
+<b>Home screen widget</b>
+A search widget opens the browser straight into the search field for quick lookups.
+
+<b>Privacy</b>
+No analytics or tracking SDKs, and no user data is collected. Cookies are kept only for site compatibility.
+
+Minimal Browser is free and open source, released under the MIT License.

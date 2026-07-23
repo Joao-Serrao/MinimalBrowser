@@ -1,0 +1,8 @@
+First public release.
+
+- Split-screen browsing instead of tabs (drag to resize, long-press to swap)
+- DuckDuckGo search with a smart address bar
+- Ad and tracker blocking, pop-ups suppressed
+- Swipe-to-go-back on the search bar
+- Immersive full-screen with video support
+- Home screen search widget
