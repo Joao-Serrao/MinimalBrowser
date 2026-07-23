@@ -11,17 +11,17 @@ val keystoreProps = Properties().apply {
 }
 
 android {
-    namespace = "com.example.minimalbrowser"
+    namespace = "io.github.joaoserrao.minimalbrowser"
     compileSdk {
         version = release(36)
     }
 
     defaultConfig {
-        applicationId = "com.example.minimalbrowser"
+        applicationId = "io.github.joaoserrao.minimalbrowser"
         minSdk = 24
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.0.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

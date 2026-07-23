@@ -1,4 +1,4 @@
-package com.example.minimalbrowser;
+package io.github.joaoserrao.minimalbrowser;
 
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;

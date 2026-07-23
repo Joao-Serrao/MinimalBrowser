@@ -1,4 +1,4 @@
-package com.example.minimalbrowser;
+package io.github.joaoserrao.minimalbrowser;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;

@@ -1,4 +1,4 @@
-package com.example.minimalbrowser;
+package io.github.joaoserrao.minimalbrowser;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
