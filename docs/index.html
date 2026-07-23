@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Minimal Browser — a lightweight, distraction-free Android browser</title>
+<meta name="description" content="A lightweight, distraction-free Android browser built around WebView: split-screen browsing, gesture controls, ad blocking and immersive full-screen.">
+<link rel="icon" href="icon.webp">
+
+<!-- Open Graph / social preview -->
+<meta property="og:title" content="Minimal Browser">
+<meta property="og:description" content="A lightweight, distraction-free Android browser with split-screen browsing, gestures and ad blocking.">
+<meta property="og:type" content="website">
+<meta property="og:image" content="icon.webp">
+
+<style>
+  :root {
+    --bg: #121212;
+    --surface: #1a1a1a;
+    --border: #2a2a2a;
+    --text: #f2f2f2;
+    --muted: #a0a0a0;
+    --accent: #3ddc84;
+    --accent-ink: #00210f;
+    --radius: 14px;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 860px; margin: 0 auto; padding: 0 20px; }
+
+  /* ---------- hero ---------- */
+  header {
+    text-align: center;
+    padding: 72px 0 56px;
+    border-bottom: 1px solid var(--border);
+    background: radial-gradient(ellipse at 50% -20%, rgba(61, 220, 132, 0.13), transparent 70%);
+  }
+  header img { width: 96px; height: 96px; border-radius: 22px; }
+  h1 { font-size: 2.4rem; margin: 20px 0 8px; letter-spacing: -0.02em; }
+  .tagline { color: var(--muted); font-size: 1.1rem; margin: 0 auto 32px; max-width: 34rem; }
+
+  /* ---------- buttons ---------- */
+  .btn {
+    display: inline-block;
+    padding: 14px 30px;
+    border-radius: 999px;
+    text-decoration: none;
+    font-weight: 650;
+    font-size: 1.02rem;
+    transition: transform .12s ease, opacity .12s ease;
+  }
+  .btn:hover { transform: translateY(-2px); }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); }
+  .btn-secondary {
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 13px 29px;
+  }
+  .btn-row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .sub { color: var(--muted); font-size: .87rem; margin-top: 14px; }
+
+  /* ---------- sections ---------- */
+  section { padding: 56px 0; border-bottom: 1px solid var(--border); }
+  h2 { font-size: 1.45rem; margin: 0 0 24px; letter-spacing: -0.01em; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+  }
+  .card h3 { margin: 0 0 6px; font-size: 1rem; }
+  .card p { margin: 0; color: var(--muted); font-size: .93rem; }
+
+  ol { padding-left: 22px; }
+  ol li { margin-bottom: 12px; }
+
+  code {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 2px 7px;
+    font-size: .88em;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+
+  .note {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 10px;
+    padding: 16px 18px;
+    color: var(--muted);
+    font-size: .93rem;
+  }
+  .note strong { color: var(--text); }
+
+  .support { text-align: center; }
+  .support p { color: var(--muted); max-width: 32rem; margin: 0 auto 24px; }
+
+  footer {
+    padding: 36px 0 56px;
+    text-align: center;
+    color: var(--muted);
+    font-size: .88rem;
+  }
+  footer a { color: var(--muted); }
+  a { color: var(--accent); }
+
+  @media (max-width: 560px) {
+    header { padding: 52px 0 42px; }
+    h1 { font-size: 1.9rem; }
+    section { padding: 42px 0; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <img src="icon.webp" alt="Minimal Browser icon">
+    <h1>Minimal Browser</h1>
+    <p class="tagline">
+      A lightweight, distraction-free Android browser built around WebView —
+      split-screen browsing, gesture controls and ad blocking, with no tabs and no clutter.
+    </p>
+
+    <div class="btn-row">
+      <!-- Always resolves to the newest release asset named MinimalBrowser.apk -->
+      <a class="btn btn-primary"
+         href="https://github.com/Joao-Serrao/MinimalBrowser/releases/latest/download/MinimalBrowser.apk">
+        Download APK
+      </a>
+      <a class="btn btn-secondary"
+         href="https://github.com/Joao-Serrao/MinimalBrowser/releases/latest">
+        All releases
+      </a>
+    </div>
+    <p class="sub">Free and open source · Requires Android 7.0 (API 24) or newer</p>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <h2>Features</h2>
+    <div class="grid">
+      <div class="card">
+        <h3>Split-screen browsing</h3>
+        <p>Two pages at once instead of tabs. Drag to resize, swap panes, and it adapts to portrait and landscape.</p>
+      </div>
+      <div class="card">
+        <h3>Search-first</h3>
+        <p>DuckDuckGo by default. Type a URL to go straight there, or anything else to search.</p>
+      </div>
+      <div class="card">
+        <h3>Ad &amp; tracker blocking</h3>
+        <p>Blocks ad and tracker domains at request level, cancels redirect-to-ad taps, and suppresses popups.</p>
+      </div>
+      <div class="card">
+        <h3>Gesture controls</h3>
+        <p>Swipe the search bar to go back, double-tap to resize panes, and hide the bar for a full screen.</p>
+      </div>
+      <div class="card">
+        <h3>Immersive full-screen</h3>
+        <p>Status and navigation bars stay hidden, with proper full-screen video playback.</p>
+      </div>
+      <div class="card">
+        <h3>Home screen widget</h3>
+        <p>A search widget that opens the browser straight into the search field.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Installing</h2>
+    <ol>
+      <li>Tap <strong>Download APK</strong> above on your Android phone.</li>
+      <li>Open the downloaded file. Android will ask permission to install from this source — allow it.</li>
+      <li>Tap <strong>Install</strong>. To add the widget, long-press your home screen → <strong>Widgets</strong> → <strong>Minimal Browser</strong>.</li>
+    </ol>
+    <p class="note">
+      <strong>Why the warning?</strong> The app is not distributed through the Play Store, so Android
+      flags it as an unknown source. The APK is signed and built from the source in this repository —
+      you can build it yourself with <code>./gradlew assembleRelease</code>.
+    </p>
+  </div>
+</section>
+
+<section class="support">
+  <div class="wrap">
+    <h2>Support the project</h2>
+    <p>
+      Minimal Browser is free and always will be. If it is useful to you,
+      you can buy me a coffee — it is appreciated but never expected.
+    </p>
+    <!-- ==========================================================
+         REPLACE YOUR_USERNAME below with your Buy Me a Coffee name
+         (from buymeacoffee.com/dashboard after signing up).
+         Delete this whole <section> if you would rather not have it.
+         ========================================================== -->
+    <a class="btn btn-primary" href="https://www.buymeacoffee.com/YOUR_USERNAME">
+      ☕ Buy me a coffee
+    </a>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p>
+      <a href="https://github.com/Joao-Serrao/MinimalBrowser">Source on GitHub</a> ·
+      Provided as-is for personal or educational use
+    </p>
+  </div>
+</footer>
+
+</body>
+</html>
