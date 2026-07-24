@@ -31,8 +31,6 @@ import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 
-import java.util.HashSet;
-import java.util.Set;
 
 public class SearchActivity extends AppCompatActivity implements WebViewHolder.Host {
 
@@ -46,10 +44,11 @@ public class SearchActivity extends AppCompatActivity implements WebViewHolder.H
     private static final float MIN_PANE_FRACTION = 0.1f;
 
     /**
-     * Fallback scroll offset, in CSS pixels, used when DuckDuckGo's header
-     * cannot be measured. Raise it if any of their bar still peeks through.
+     * Fallback height, in dp, of DuckDuckGo's search header, used only when it
+     * cannot be measured from the page. Raise it if their bar still peeks
+     * through on results.
      */
-    private static final int DDG_HEADER_SKIP_CSS_PX = 128;
+    private static final int DDG_HEADER_SKIP_DP = 128;
 
     private WebView mainWebView;
     private WebView secondaryWebView;
@@ -92,13 +91,6 @@ public class SearchActivity extends AppCompatActivity implements WebViewHolder.H
     private int lastKeyboardInset = -1;
 
     private GestureDetector searchSwipeDetector;
-
-    /**
-     * Views whose next finished page should be scrolled past DuckDuckGo's own
-     * header. Only set for searches we start ourselves, so going Back keeps the
-     * scroll position WebView restores instead of jumping.
-     */
-    private final Set<WebView> pendingHeaderSkip = new HashSet<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -229,9 +221,6 @@ public class SearchActivity extends AppCompatActivity implements WebViewHolder.H
             // Uri.encode, not a manual space swap: a query containing &, #, + or
             // % used to produce a broken or truncated URL.
             url = String.format(SEARCH_URL, Uri.encode(input));
-            // Our own search bar already sits above the page, so skip past
-            // DuckDuckGo's duplicate one when the results land.
-            pendingHeaderSkip.add(activeWebView);
         }
         activeWebView.loadUrl(url);
     }
@@ -622,29 +611,64 @@ public class SearchActivity extends AppCompatActivity implements WebViewHolder.H
 
     @Override
     public void onPageLoaded(WebView view, String url) {
-        if (!pendingHeaderSkip.remove(view)) return;
-        if (!UrlUtil.isDuckDuckGo(url)) return;
-        skipDuckDuckGoHeader(view);
+        if (!(view instanceof FloorWebView)) return;
+        FloorWebView floorView = (FloorWebView) view;
+
+        if (UrlUtil.isDuckDuckGo(url)) {
+            // Applied on every DuckDuckGo load rather than once per search:
+            // their ?q= redirect means the first finished page is not the
+            // results page, and a one-shot scroll was consumed by it.
+            applyDuckDuckGoFloor(floorView, 0);
+        } else {
+            floorView.clearScrollFloor();
+        }
     }
 
     /**
-     * Scrolls just past DuckDuckGo's search header so the results start at the
-     * top of the viewport. The page is only scrolled, never modified, so
-     * scrolling back up still reaches DuckDuckGo's own bar and settings.
+     * Measures the bottom of DuckDuckGo's search header and makes that the
+     * page's effective top. Retries briefly because results stream in, so the
+     * page is often still short when the load first finishes.
      */
-    private void skipDuckDuckGoHeader(WebView view) {
+    private void applyDuckDuckGoFloor(FloorWebView view, int attempt) {
         String js =
                 "(function(){try{"
-                        + "var probe=document.querySelector('#header,header,form[role=search],#search_form');"
-                        + "var y=" + DDG_HEADER_SKIP_CSS_PX + ";"
-                        + "if(probe){var b=probe.getBoundingClientRect().bottom+(window.scrollY||0);"
-                        + "if(b>20&&b<400){y=Math.round(b);}}"
-                        + "if(document.documentElement.scrollHeight>window.innerHeight+y){"
-                        + "window.scrollTo(0,y);}"
-                        + "}catch(e){}})();";
-        // A short delay lets layout settle; scrolling too early is a no-op
-        // because the document has no scrollable height yet.
-        view.postDelayed(() -> view.evaluateJavascript(js, null), 120);
+                        + "var el=document.querySelector('#search_form,form[role=search],#header');"
+                        + "if(!el)return -1;"
+                        + "var b=el.getBoundingClientRect().bottom+(window.scrollY||0);"
+                        + "return Math.round(b);"
+                        + "}catch(e){return -1;}})();";
+
+        view.evaluateJavascript(js, value -> {
+            int cssPx = parseJsInt(value);
+            float density = getResources().getDisplayMetrics().density;
+
+            if (cssPx > 20 && cssPx < 400) {
+                int floorPx = Math.round(cssPx * density);
+                if (view.hasRoomToScroll(floorPx)) {
+                    view.setScrollFloor(floorPx);
+                    return;
+                }
+            }
+
+            if (attempt < 4) {
+                view.postDelayed(() -> applyDuckDuckGoFloor(view, attempt + 1), 200);
+            } else {
+                // Measurement failed. Only fall back to the constant if the
+                // page can actually scroll that far, so short pages (the
+                // DuckDuckGo homepage) are left alone.
+                int fallback = dpToPx(DDG_HEADER_SKIP_DP);
+                if (view.hasRoomToScroll(fallback)) view.setScrollFloor(fallback);
+                else view.clearScrollFloor();
+            }
+        });
+    }
+
+    private static int parseJsInt(String value) {
+        try {
+            return Integer.parseInt(value == null ? "" : value.replace("\"", "").trim());
+        } catch (NumberFormatException e) {
+            return -1;
+        }
     }
 
     @Override
@@ -725,7 +749,6 @@ public class SearchActivity extends AppCompatActivity implements WebViewHolder.H
             rootView.getViewTreeObserver().removeOnGlobalLayoutListener(keyboardListener);
             keyboardListener = null;
         }
-        pendingHeaderSkip.clear();
         destroyWebView(mainWebView);
         destroyWebView(secondaryWebView);
         mainWebView = null;

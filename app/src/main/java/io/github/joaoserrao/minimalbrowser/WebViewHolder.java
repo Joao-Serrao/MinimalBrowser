@@ -102,10 +102,10 @@ public class WebViewHolder {
     private WebViewHolder() {
     }
 
-    public static WebView create(Activity activity, Host host) {
+    public static FloorWebView create(Activity activity, Host host) {
         if (activity == null) throw new IllegalArgumentException("Activity context required");
 
-        WebView wv = new WebView(activity);
+        FloorWebView wv = new FloorWebView(activity);
         applySettings(activity, wv, host);
         return wv;
     }
