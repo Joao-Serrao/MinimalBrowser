@@ -111,6 +111,34 @@
   }
   .note strong { color: var(--text); }
 
+  /* horizontal scroll on small screens rather than squashing the shots */
+  .shots {
+    display: flex;
+    gap: 14px;
+    overflow-x: auto;
+    padding-bottom: 8px;
+    scroll-snap-type: x mandatory;
+  }
+  .shots figure {
+    margin: 0;
+    flex: 0 0 auto;
+    width: 200px;
+    scroll-snap-align: start;
+  }
+  .shots img {
+    width: 100%;
+    height: auto;
+    display: block;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+  .shots figcaption {
+    color: var(--muted);
+    font-size: .82rem;
+    text-align: center;
+    margin-top: 8px;
+  }
+
   .support { text-align: center; }
   .support p { color: var(--muted); max-width: 32rem; margin: 0 auto 24px; }
 
@@ -155,6 +183,30 @@
     <p class="sub">Free and open source · Requires Android 7.0 (API 24) or newer</p>
   </div>
 </header>
+
+<section>
+  <div class="wrap">
+    <h2>Screenshots</h2>
+    <div class="shots">
+      <figure>
+        <img src="screenshots/1.jpg" alt="Home screen search widget" loading="lazy" width="540" height="1200">
+        <figcaption>Home screen widget</figcaption>
+      </figure>
+      <figure>
+        <img src="screenshots/2.jpg" alt="Search results" loading="lazy" width="540" height="1200">
+        <figcaption>Search results</figcaption>
+      </figure>
+      <figure>
+        <img src="screenshots/3.jpg" alt="Split-screen browsing" loading="lazy" width="540" height="1200">
+        <figcaption>Split-screen browsing</figcaption>
+      </figure>
+      <figure>
+        <img src="screenshots/4.jpg" alt="Split screen with the address bar" loading="lazy" width="540" height="1200">
+        <figcaption>Smart address bar</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
 
 <section>
   <div class="wrap">

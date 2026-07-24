@@ -27,6 +27,21 @@ Prefer to build it yourself? `./gradlew assembleRelease` — see [Building](#bui
 
 # 
 
+## Screenshots
+
+<p align="center">
+  <img src="docs/screenshots/1.jpg" width="200" alt="Home screen search widget">
+  <img src="docs/screenshots/2.jpg" width="200" alt="Search results">
+  <img src="docs/screenshots/3.jpg" width="200" alt="Split screen browsing">
+  <img src="docs/screenshots/4.jpg" width="200" alt="Split screen with the address bar">
+</p>
+
+<p align="center">
+  <i>Home screen widget &nbsp;·&nbsp; Search results &nbsp;·&nbsp; Split-screen browsing &nbsp;·&nbsp; Smart address bar</i>
+</p>
+
+# 
+
 ## Motivation
 
 
