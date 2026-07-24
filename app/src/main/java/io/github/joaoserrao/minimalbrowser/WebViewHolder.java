@@ -40,6 +40,9 @@ public class WebViewHolder {
         /** The given view navigated to a new URL. */
         void onUrlChanged(WebView view, String url);
 
+        /** The given view finished loading a page. */
+        void onPageLoaded(WebView view, String url);
+
         /**
          * A page requested a file picker. Returns true if a chooser was
          * launched (the callback will be invoked later), false to cancel.
@@ -167,6 +170,7 @@ public class WebViewHolder {
             @Override
             public void onPageFinished(WebView view, String url) {
                 notifyUrl(host, view, url);
+                if (host != null && url != null) host.onPageLoaded(view, url);
             }
 
             @Override

@@ -54,12 +54,18 @@ final class UrlUtil {
      */
     static String displayTextForUrl(String url) {
         if (url == null) return "";
-        if (url.startsWith("https://duckduckgo.com/")
-                || url.startsWith("https://www.duckduckgo.com/")) {
+        if (isDuckDuckGo(url)) {
             String query = queryParam(url, "q");
             return query == null ? "" : query;
         }
         return url;
+    }
+
+    /** True for pages served by DuckDuckGo itself. */
+    static boolean isDuckDuckGo(String url) {
+        return url != null
+                && (url.startsWith("https://duckduckgo.com/")
+                || url.startsWith("https://www.duckduckgo.com/"));
     }
 
     static String queryParam(String url, String key) {

@@ -1,7 +1,9 @@
 package io.github.joaoserrao.minimalbrowser;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
@@ -71,6 +73,15 @@ public class UrlUtilTest {
     public void showsNothingForDuckDuckGoHome() {
         assertEquals("", UrlUtil.displayTextForUrl("https://duckduckgo.com/?kp=-2&ka=-1"));
         assertEquals("", UrlUtil.displayTextForUrl("https://duckduckgo.com/"));
+    }
+
+    @Test
+    public void detectsDuckDuckGoPages() {
+        assertTrue(UrlUtil.isDuckDuckGo("https://duckduckgo.com/?q=cats"));
+        assertTrue(UrlUtil.isDuckDuckGo("https://www.duckduckgo.com/"));
+        assertFalse(UrlUtil.isDuckDuckGo("https://github.com"));
+        assertFalse(UrlUtil.isDuckDuckGo("https://notduckduckgo.com/?q=x"));
+        assertFalse(UrlUtil.isDuckDuckGo(null));
     }
 
     @Test
