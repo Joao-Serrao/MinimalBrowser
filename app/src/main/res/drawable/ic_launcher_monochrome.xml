@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Adaptive icon foreground: two stacked panes, the app's split-screen view.
-    All artwork sits inside the 72x72 safe zone (18..90 on the 108 canvas) so
-    no launcher mask can clip it.
+    Themed-icon (Android 13+) layer. The system tints this by alpha, so the
+    shapes are a single flat colour and the split reads through the gap.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
@@ -10,13 +9,11 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Top pane (active) -->
     <path
-        android:fillColor="#3DDC84"
+        android:fillColor="#FFFFFF"
         android:pathData="M35,25 h38 a5,5 0 0 1 5,5 v12 a5,5 0 0 1 -5,5 h-38 a5,5 0 0 1 -5,-5 v-12 a5,5 0 0 1 5,-5 z" />
 
-    <!-- Bottom pane -->
     <path
-        android:fillColor="#ECECEC"
+        android:fillColor="#FFFFFF"
         android:pathData="M35,52 h38 a5,5 0 0 1 5,5 v21 a5,5 0 0 1 -5,5 h-38 a5,5 0 0 1 -5,-5 v-21 a5,5 0 0 1 5,-5 z" />
 </vector>
