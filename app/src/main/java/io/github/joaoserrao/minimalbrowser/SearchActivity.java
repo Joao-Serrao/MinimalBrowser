@@ -44,11 +44,11 @@ public class SearchActivity extends AppCompatActivity implements WebViewHolder.H
     private static final float MIN_PANE_FRACTION = 0.1f;
 
     /**
-     * Fallback height, in dp, of DuckDuckGo's search header, used only when it
-     * cannot be measured from the page. Raise it if their bar still peeks
-     * through on results.
+     * Fallback height, in dp, of DuckDuckGo's search box, used only when it
+     * cannot be measured from the page. Should sit just below the search box
+     * and above the type tabs.
      */
-    private static final int DDG_HEADER_SKIP_DP = 128;
+    private static final int DDG_SEARCHBOX_SKIP_DP = 96;
 
     private WebView mainWebView;
     private WebView secondaryWebView;
@@ -614,10 +614,12 @@ public class SearchActivity extends AppCompatActivity implements WebViewHolder.H
         if (!(view instanceof FloorWebView)) return;
         FloorWebView floorView = (FloorWebView) view;
 
-        if (UrlUtil.isDuckDuckGo(url)) {
-            // Applied on every DuckDuckGo load rather than once per search:
-            // their ?q= redirect means the first finished page is not the
-            // results page, and a one-shot scroll was consumed by it.
+        // Only actual results pages (those carrying a ?q=) get a floor; the
+        // DuckDuckGo homepage and its settings pages are left untouched.
+        if (UrlUtil.isDuckDuckGo(url) && UrlUtil.queryParam(url, "q") != null) {
+            // Applied on every matching load rather than once per search: their
+            // ?q= redirect means the first finished page is not the results
+            // page, and a one-shot scroll was consumed by it.
             applyDuckDuckGoFloor(floorView, 0);
         } else {
             floorView.clearScrollFloor();
@@ -625,16 +627,20 @@ public class SearchActivity extends AppCompatActivity implements WebViewHolder.H
     }
 
     /**
-     * Measures the bottom of DuckDuckGo's search header and makes that the
-     * page's effective top. Retries briefly because results stream in, so the
-     * page is often still short when the load first finishes.
+     * Measures the bottom of DuckDuckGo's search box and makes that the page's
+     * effective top, so the type tabs (All / Images / Videos ...) and settings
+     * gear stay visible while the duplicate search box is clamped away.
+     * Retries briefly because results stream in, so the page is often still
+     * short when the load first finishes.
      */
     private void applyDuckDuckGoFloor(FloorWebView view, int attempt) {
+        // Target the search INPUT, not the whole header, so the floor sits
+        // above the tabs row rather than below it.
         String js =
                 "(function(){try{"
-                        + "var el=document.querySelector('#search_form,form[role=search],#header');"
+                        + "var el=document.querySelector('#searchbox_input,#search_form_input,input[name=\"q\"]');"
                         + "if(!el)return -1;"
-                        + "var b=el.getBoundingClientRect().bottom+(window.scrollY||0);"
+                        + "var b=el.getBoundingClientRect().bottom+(window.scrollY||0)+6;"
                         + "return Math.round(b);"
                         + "}catch(e){return -1;}})();";
 
@@ -642,7 +648,7 @@ public class SearchActivity extends AppCompatActivity implements WebViewHolder.H
             int cssPx = parseJsInt(value);
             float density = getResources().getDisplayMetrics().density;
 
-            if (cssPx > 20 && cssPx < 400) {
+            if (cssPx > 20 && cssPx < 300) {
                 int floorPx = Math.round(cssPx * density);
                 if (view.hasRoomToScroll(floorPx)) {
                     view.setScrollFloor(floorPx);
@@ -654,9 +660,8 @@ public class SearchActivity extends AppCompatActivity implements WebViewHolder.H
                 view.postDelayed(() -> applyDuckDuckGoFloor(view, attempt + 1), 200);
             } else {
                 // Measurement failed. Only fall back to the constant if the
-                // page can actually scroll that far, so short pages (the
-                // DuckDuckGo homepage) are left alone.
-                int fallback = dpToPx(DDG_HEADER_SKIP_DP);
+                // page can actually scroll that far.
+                int fallback = dpToPx(DDG_SEARCHBOX_SKIP_DP);
                 if (view.hasRoomToScroll(fallback)) view.setScrollFloor(fallback);
                 else view.clearScrollFloor();
             }
